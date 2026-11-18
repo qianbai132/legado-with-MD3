@@ -21,7 +21,17 @@ data class AiChatUiState(
     val workspaceOpen: Boolean = false,
     val workspaceArtifacts: ImmutableList<AiArtifact> = persistentListOf(),
     /** 阅读页技能小窗标题栏显示的技能名（仅标识，不注入正文）。 */
-    val activeSkillName: String? = null
+    val activeSkillName: String? = null,
+    /** 供输入框「添加」菜单选择的技能（已启用，含书源制作）。 */
+    val availableSkills: ImmutableList<AiSkillOptionUi> = persistentListOf()
+)
+
+/** 输入框「添加」菜单里的一项技能。 */
+@Stable
+data class AiSkillOptionUi(
+    val id: String,
+    val name: String,
+    val description: String
 )
 
 @Stable
@@ -109,6 +119,13 @@ sealed interface AiChatIntent {
     data object ClearBookChatMessages : AiChatIntent
     /** 为当前小窗的书新建一个全新会话，并更新 bookUrl 映射。 */
     data object NewBookChat : AiChatIntent
+
+    // ---- 添加菜单 ----
+    /**
+     * 从「添加」菜单点技能：新建一个全新对话任务，标题用技能名，
+     * 并把该技能作为首条消息的意图交给 AI（AI 用 load_skill 加载正文）。
+     */
+    data class StartSkillTask(val skillId: String) : AiChatIntent
 }
 
 sealed interface AiChatEffect {

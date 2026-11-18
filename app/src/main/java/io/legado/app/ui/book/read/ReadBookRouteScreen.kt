@@ -66,7 +66,6 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
-import org.koin.androidx.compose.koinViewModel
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import dev.chrisbanes.haze.HazeState
@@ -188,9 +187,6 @@ fun ReadBookRouteScreen(
     val readPreferences by viewModel.readPreferences.collectAsStateWithLifecycle()
     val markingState by viewModel.markingState.collectAsStateWithLifecycle()
     val readerRenderState by readerSessionViewModel.uiState.collectAsStateWithLifecycle()
-    // AI 悬浮小窗独立持有技能列表，避免把 AI 职责塞进阅读页 ViewModel。
-    val aiQuickViewModel: AiQuickAccessViewModel = koinViewModel()
-    val aiQuickSkills by aiQuickViewModel.skills.collectAsStateWithLifecycle()
     // 当前打开的「书籍 AI 对话小窗」参数；null 表示未打开。
     var bookChatWindow by remember { mutableStateOf<BookChatWindowRequest?>(null) }
     val readerPageWindow = readerRenderState.pageWindow
@@ -879,29 +875,16 @@ fun ReadBookRouteScreen(
                 visible = !state.menuVisible && !state.isShowingSearchResult && state.activeDialog == null,
             ) {
                 AiQuickFab(
-                    skills = aiQuickSkills,
                     onOpenChat = {
                         val book = state.book
                         if (book != null) {
+                            // 悬浮球点开即小对话框；技能在对话框内的「添加」菜单里选择。
                             bookChatWindow = BookChatWindowRequest(
                                 bookUrl = book.bookUrl,
                                 bookName = book.name.orEmpty(),
                                 chapterTitle = state.chapterName.orEmpty(),
                                 skillId = null,
                                 skillName = null,
-                            )
-                        }
-                    },
-                    onOpenSkill = { skillId ->
-                        val book = state.book
-                        if (book != null) {
-                            val skillName = aiQuickSkills.firstOrNull { it.id == skillId }?.name
-                            bookChatWindow = BookChatWindowRequest(
-                                bookUrl = book.bookUrl,
-                                bookName = book.name.orEmpty(),
-                                chapterTitle = state.chapterName.orEmpty(),
-                                skillId = skillId,
-                                skillName = skillName,
                             )
                         }
                     },

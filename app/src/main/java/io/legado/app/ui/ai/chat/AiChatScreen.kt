@@ -35,14 +35,13 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.DrawerValue
@@ -92,7 +91,6 @@ import io.legado.app.data.entities.AiArtifact
 import io.legado.app.domain.model.AiErrorKind
 import io.legado.app.domain.model.AiMessageRole
 import io.legado.app.domain.model.AiReasoningLevel
-import io.legado.app.ui.ai.AiReasoningModeButton
 import io.legado.app.ui.theme.LegadoTheme
 import io.legado.app.ui.widget.components.AppScaffold
 import io.legado.app.ui.widget.components.AppTextField
@@ -159,6 +157,8 @@ fun AiChatScreen(
     var bottomOverlayHeightPx by remember { mutableIntStateOf(0) }
     var initiallyPositionedConversationId by remember { mutableStateOf<String?>(null) }
     var errorDialogMessage by rememberSaveable { mutableStateOf<String?>(null) }
+    var overflowExpanded by remember { mutableStateOf(false) }
+    var conversationToDelete by remember { mutableStateOf<String?>(null) }
     val snackbarActionLabel = stringResource(R.string.details)
     val errorDialogTitle = stringResource(R.string.error_details)
     val currentConversation = state.conversations.firstOrNull {
@@ -508,6 +508,7 @@ fun AiChatScreen(
                                 value = draft,
                                 isSending = state.isSending,
                                 reasoningLevel = state.reasoningLevel,
+                                skills = state.availableSkills,
                                 onValueChange = { draft = it },
                                 onSend = {
                                     val text = draft
@@ -517,7 +518,8 @@ fun AiChatScreen(
                                 onStop = { onIntent(AiChatIntent.StopGenerating) },
                                 onUpdateReasoningLevel = {
                                     onIntent(AiChatIntent.UpdateReasoningLevel(it))
-                                }
+                                },
+                                onStartSkill = { onIntent(AiChatIntent.StartSkillTask(it)) }
                             )
                         }
                     }
@@ -552,10 +554,11 @@ fun AiChatScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // 左上角：菜单折叠图标，打开「新对话 + 历史会话」抽屉。
                         MediumTonalButton(
-                            onClick = onBackClick,
-                            icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                            contentDescription = stringResource(R.string.back),
+                            onClick = { scope.launch { drawerState.open() } },
+                            icon = Icons.Default.Menu,
+                            contentDescription = stringResource(R.string.ai_chat_menu)
                         )
                         Box(
                             modifier = Modifier.weight(1f),
@@ -589,21 +592,23 @@ fun AiChatScreen(
                                 }
                             }
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // 右上角：溢出菜单（新对话 / 工作区 / 保存 / 删除 / 返回）。
+                        Box {
                             MediumTonalButton(
-                                onClick = { onIntent(AiChatIntent.ToggleWorkspace) },
-                                icon = Icons.Default.Folder,
-                                contentDescription = stringResource(R.string.ai_workspace)
+                                onClick = { overflowExpanded = true },
+                                icon = Icons.Default.MoreVert,
+                                contentDescription = stringResource(R.string.ai_more)
                             )
-                            MediumTonalButton(
-                                onClick = { scope.launch { drawerState.open() } },
-                                icon = Icons.Default.Menu,
-                                contentDescription = stringResource(R.string.ai_recent_chats)
-                            )
-                            MediumTonalButton(
-                                onClick = { onIntent(AiChatIntent.NewConversation) },
-                                icon = Icons.Default.Add,
-                                contentDescription = stringResource(R.string.ai_new_chat)
+                            AiChatOverflowMenu(
+                                expanded = overflowExpanded,
+                                onDismiss = { overflowExpanded = false },
+                                onNewChat = { onIntent(AiChatIntent.NewConversation) },
+                                onWorkspace = { onIntent(AiChatIntent.ToggleWorkspace) },
+                                onSave = { onIntent(AiChatIntent.SaveConversationToWorkspace) },
+                                onDelete = {
+                                    currentConversation?.id?.let { conversationToDelete = it }
+                                },
+                                onBack = onBackClick,
                             )
                         }
                     }
@@ -626,6 +631,20 @@ fun AiChatScreen(
         text = errorDialogMessage,
         confirmText = stringResource(R.string.ok),
         onConfirm = { errorDialogMessage = null }
+    )
+
+    AppAlertDialog(
+        show = conversationToDelete != null,
+        onDismissRequest = { conversationToDelete = null },
+        title = stringResource(R.string.ai_delete_current),
+        text = stringResource(R.string.ai_delete_current_confirm),
+        confirmText = stringResource(R.string.delete),
+        onConfirm = {
+            conversationToDelete?.let { onIntent(AiChatIntent.DeleteConversation(it)) }
+            conversationToDelete = null
+        },
+        dismissText = stringResource(R.string.cancel),
+        onDismiss = { conversationToDelete = null }
     )
 }
 
@@ -914,7 +933,7 @@ private fun RecentChatsDrawer(
     )
 }
 
-private fun formatRelativeTime(timestamp: Long): String {
+internal fun formatRelativeTime(timestamp: Long): String {
     val now = System.currentTimeMillis()
     val diff = now - timestamp
     val minutes = TimeUnit.MILLISECONDS.toMinutes(diff)
@@ -1059,10 +1078,12 @@ private fun ChatInputBar(
     value: String,
     isSending: Boolean,
     reasoningLevel: AiReasoningLevel,
+    skills: ImmutableList<AiSkillOptionUi>,
     onValueChange: (String) -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit,
-    onUpdateReasoningLevel: (AiReasoningLevel) -> Unit
+    onUpdateReasoningLevel: (AiReasoningLevel) -> Unit,
+    onStartSkill: (String) -> Unit,
 ) {
     val isKeyboardVisible =
         WindowInsets.ime.asPaddingValues().calculateBottomPadding() > 0.dp
@@ -1096,11 +1117,13 @@ private fun ChatInputBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            // Thinking mode button
-            AiReasoningModeButton(
-                level = reasoningLevel,
+            // 「添加」触发器：思考模式 + 技能（含书源制作），点技能新开对话任务。
+            AiAddMenuTrigger(
+                reasoningLevel = reasoningLevel,
+                skills = skills,
                 enabled = !isSending,
                 onLevelChange = onUpdateReasoningLevel,
+                onStartSkill = onStartSkill,
             )
 
             // Text field

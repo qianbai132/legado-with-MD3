@@ -2458,6 +2458,12 @@
     <string name="ai_send">发送</string>
     <string name="ai_chat_input_hint">输入问题…</string>
     <string name="ai_save_conversation">保存对话</string>
+    <string name="ai_add">添加</string>
+    <string name="ai_add_no_skills">暂无可用技能，可在 AI 设置里添加。</string>
+    <string name="ai_chat_menu">对话菜单</string>
+    <string name="ai_more">更多选项</string>
+    <string name="ai_delete_current">删除当前对话</string>
+    <string name="ai_delete_current_confirm">确定删除当前对话？此操作不可撤销。</string>
     <string name="ai_chat_empty">开始一段对话</string>
     <string name="ai_regenerate">重新生成</string>
     <string name="ai_thinking_mode">思考模式</string>

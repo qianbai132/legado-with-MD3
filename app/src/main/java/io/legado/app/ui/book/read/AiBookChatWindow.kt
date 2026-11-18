@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,11 +22,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -35,8 +33,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -48,12 +46,17 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.legado.app.R
 import io.legado.app.domain.model.AiErrorKind
 import io.legado.app.domain.model.AiMessageRole
+import io.legado.app.ui.ai.chat.AiAddMenuTrigger
 import io.legado.app.ui.ai.chat.AiChatEffect
 import io.legado.app.ui.ai.chat.AiChatIntent
+import io.legado.app.ui.ai.chat.AiChatOverflowMenu
+import io.legado.app.ui.ai.chat.AiChatViewModel
+import io.legado.app.ui.ai.chat.AiConversationMenuSheet
 import io.legado.app.ui.ai.chat.AiReadingContext
 import io.legado.app.ui.ai.chat.AiWorkspaceSheet
-import io.legado.app.ui.ai.chat.AiChatViewModel
 import io.legado.app.ui.theme.LegadoTheme
+import io.legado.app.ui.widget.components.alert.AppAlertDialog
+import io.legado.app.ui.widget.components.button.series.MediumTonalButton
 import io.legado.app.ui.widget.components.button.series.SmallPlainButton
 import io.legado.app.ui.widget.components.text.AppText
 import kotlinx.coroutines.delay
@@ -69,9 +72,10 @@ private fun aiMiniErrorText(kind: AiErrorKind): Int = when (kind) {
 }
 
 /**
- * 阅读页内的 AI 对话悬浮小窗（比笔记小框稍大、可拖动，每本书一个独立会话）。
- * 内部 ViewModel 以 bookUrl 为 key，挂载时发 OpenBookChat 找/建会话；技能只显示名称，
- * 正文交给 AI 通过内置 load_skill 工具按需加载。
+ * 阅读页内的 AI 对话悬浮小窗：可拖动、比早期版本更小，每本书一个独立会话。
+ * 顶栏左侧折叠菜单放「新对话 + 历史会话」，右侧溢出菜单放「新对话 / 工作区 / 保存 / 删除」；
+ * 输入栏前置「添加」触发器，含思考模式与全部技能（含书源制作），点技能新开一个对话任务。
+ * 布局与主问答框一致，只是压缩到浮层尺寸。
  */
 @Composable
 fun AiBookChatWindow(
@@ -89,8 +93,9 @@ fun AiBookChatWindow(
     val density = LocalDensity.current
     val screenW = configuration.screenWidthDp.toFloat()
     val screenH = configuration.screenHeightDp.toFloat()
-    val winW = (screenW - 48f).coerceAtMost(560f)
-    val winH = (screenH * 0.58f).coerceIn(360f, 620f)
+    // 进一步缩小：宽度上限 480，高度取屏高 50%（300~480）。
+    val winW = (screenW - 56f).coerceAtMost(480f)
+    val winH = (screenH * 0.5f).coerceIn(300f, 480f)
 
     var offsetX by remember { mutableFloatStateOf((screenW - winW) / 2f) }
     var offsetY by remember { mutableFloatStateOf((screenH - winH) / 2f) }
@@ -140,6 +145,10 @@ fun AiBookChatWindow(
         )
     }
 
+    var menuSheetShown by remember { mutableStateOf(false) }
+    var overflowExpanded by remember { mutableStateOf(false) }
+    var conversationToDelete by remember { mutableStateOf<String?>(null) }
+
     Surface(
         shape = RoundedCornerShape(20.dp),
         color = LegadoTheme.colorScheme.surfaceContainerHigh,
@@ -148,32 +157,42 @@ fun AiBookChatWindow(
         modifier = Modifier
             .offset(x = shownX.dp, y = shownY.dp)
             .width(winW.dp)
-            .heightIn(min = 360.dp, max = 620.dp),
+            .heightIn(min = 300.dp, max = 480.dp),
     ) {
         Column {
-            // 顶部抓手：拖动窗口；右侧放工作区 / 保存 / 关闭。
+            // 顶栏：左折叠菜单 / 中间可拖动标题 / 右溢出菜单。
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .pointerInput(Unit) {
-                        detectDragGestures(
-                            onDragStart = { dragging = true },
-                            onDragCancel = { dragging = false },
-                            onDragEnd = { dragging = false },
-                        ) { change, amount ->
-                            change.consume()
-                            offsetX = (offsetX + amount.x / density.density)
-                                .coerceIn(0f, (screenW - winW).coerceAtLeast(0f))
-                            offsetY = (offsetY + amount.y / density.density)
-                                .coerceIn(0f, (screenH - winH).coerceAtLeast(0f))
-                        }
-                    }
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                MediumTonalButton(
+                    onClick = { menuSheetShown = true },
+                    icon = Icons.Default.Menu,
+                    contentDescription = stringResource(R.string.ai_chat_menu),
+                )
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .pointerInput(Unit) {
+                            detectDragGestures(
+                                onDragStart = { dragging = true },
+                                onDragCancel = { dragging = false },
+                                onDragEnd = { dragging = false },
+                            ) { change, amount ->
+                                change.consume()
+                                offsetX = (offsetX + amount.x / density.density)
+                                    .coerceIn(0f, (screenW - winW).coerceAtLeast(0f))
+                                offsetY = (offsetY + amount.y / density.density)
+                                    .coerceIn(0f, (screenH - winH).coerceAtLeast(0f))
+                            }
+                        }
+                        .padding(horizontal = 8.dp),
+                ) {
                     AppText(
-                        text = skillName?.takeIf { it.isNotBlank() } ?: stringResource(R.string.ai_chat),
+                        text = state.activeSkillName?.takeIf { it.isNotBlank() }
+                            ?: stringResource(R.string.ai_chat),
                         style = LegadoTheme.typography.titleSmallEmphasized,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -186,31 +205,26 @@ fun AiBookChatWindow(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                SmallPlainButton(
-                    onClick = { viewModel.onIntent(AiChatIntent.ClearBookChatMessages) },
-                    icon = Icons.Default.DeleteSweep,
-                    contentDescription = stringResource(R.string.ai_clear_chat),
-                )
-                SmallPlainButton(
-                    onClick = { viewModel.onIntent(AiChatIntent.NewBookChat) },
-                    icon = Icons.Default.Add,
-                    contentDescription = stringResource(R.string.ai_new_chat),
-                )
-                SmallPlainButton(
-                    onClick = { viewModel.onIntent(AiChatIntent.ToggleWorkspace) },
-                    icon = Icons.Default.Folder,
-                    contentDescription = stringResource(R.string.ai_workspace),
-                )
-                SmallPlainButton(
-                    onClick = { viewModel.onIntent(AiChatIntent.SaveConversationToWorkspace) },
-                    icon = Icons.Default.Save,
-                    contentDescription = stringResource(R.string.ai_save_conversation),
-                )
-                SmallPlainButton(
-                    onClick = onDismiss,
-                    icon = Icons.Default.Close,
-                    contentDescription = stringResource(R.string.close),
-                )
+                Box {
+                    MediumTonalButton(
+                        onClick = { overflowExpanded = true },
+                        icon = Icons.Default.MoreVert,
+                        contentDescription = stringResource(R.string.ai_more),
+                    )
+                    AiChatOverflowMenu(
+                        expanded = overflowExpanded,
+                        onDismiss = { overflowExpanded = false },
+                        onNewChat = { viewModel.onIntent(AiChatIntent.NewBookChat) },
+                        onWorkspace = { viewModel.onIntent(AiChatIntent.ToggleWorkspace) },
+                        onSave = { viewModel.onIntent(AiChatIntent.SaveConversationToWorkspace) },
+                        onDelete = {
+                            viewModel.uiState.value.currentConversationId?.let {
+                                conversationToDelete = it
+                            }
+                        },
+                        onBack = onDismiss,
+                    )
+                }
             }
 
             if (toast != null) {
@@ -236,7 +250,7 @@ fun AiBookChatWindow(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp),
+                    .padding(horizontal = 10.dp),
             ) {
                 items(state.messages, key = { it.id }) { msg ->
                     val isUser = msg.role == AiMessageRole.USER
@@ -265,7 +279,7 @@ fun AiBookChatWindow(
                 }
             }
 
-            // 输入栏。
+            // 输入栏：前置「添加」触发器（思考模式 + 技能），点技能新开任务。
             var draft by remember { mutableStateOf("") }
             Row(
                 modifier = Modifier
@@ -273,6 +287,14 @@ fun AiBookChatWindow(
                     .padding(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                AiAddMenuTrigger(
+                    reasoningLevel = state.reasoningLevel,
+                    skills = state.availableSkills,
+                    enabled = !state.isSending,
+                    onLevelChange = { viewModel.onIntent(AiChatIntent.UpdateReasoningLevel(it)) },
+                    onStartSkill = { viewModel.onIntent(AiChatIntent.StartSkillTask(it)) },
+                )
+                Spacer(Modifier.size(6.dp))
                 Surface(
                     shape = RoundedCornerShape(20.dp),
                     color = LegadoTheme.colorScheme.surfaceContainerLow,
@@ -288,6 +310,7 @@ fun AiBookChatWindow(
                         textStyle = LegadoTheme.typography.bodyMedium.copy(
                             color = LegadoTheme.colorScheme.onSurface
                         ),
+                        cursorBrush = SolidColor(LegadoTheme.colorScheme.primary),
                         decorationBox = { inner ->
                             if (draft.isEmpty()) {
                                 AppText(
@@ -322,4 +345,27 @@ fun AiBookChatWindow(
             onDismiss = { viewModel.onIntent(AiChatIntent.CloseWorkspace) },
         )
     }
+
+    AiConversationMenuSheet(
+        show = menuSheetShown,
+        onDismissRequest = { menuSheetShown = false },
+        conversations = state.conversations,
+        currentConversationId = state.currentConversationId,
+        onNewChat = { viewModel.onIntent(AiChatIntent.NewBookChat) },
+        onSelectConversation = { viewModel.onIntent(AiChatIntent.SelectConversation(it)) },
+    )
+
+    AppAlertDialog(
+        show = conversationToDelete != null,
+        onDismissRequest = { conversationToDelete = null },
+        title = stringResource(R.string.ai_delete_current),
+        text = stringResource(R.string.ai_delete_current_confirm),
+        confirmText = stringResource(R.string.delete),
+        onConfirm = {
+            conversationToDelete?.let { viewModel.onIntent(AiChatIntent.DeleteConversation(it)) }
+            conversationToDelete = null
+        },
+        dismissText = stringResource(R.string.cancel),
+        onDismiss = { conversationToDelete = null },
+    )
 }

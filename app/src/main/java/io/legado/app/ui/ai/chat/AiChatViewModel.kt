@@ -62,12 +62,30 @@ class AiChatViewModel(
         observeConversations()
         observeCurrentMessages()
         observeArtifacts()
+        observeSkills()
     }
 
     private fun observeArtifacts() {
         viewModelScope.launch {
             aiArtifactGateway.observeAllArtifacts().collect { artifacts ->
                 _uiState.update { it.copy(workspaceArtifacts = artifacts.toImmutableList()) }
+            }
+        }
+    }
+
+    /** 输入框「添加」菜单用的技能列表：全部已启用技能（含书源制作），按排序号。 */
+    private fun observeSkills() {
+        viewModelScope.launch {
+            aiProfileGateway.observeSkills().collect { skills ->
+                _uiState.update { current ->
+                    current.copy(
+                        availableSkills = skills
+                            .filter { it.enabled }
+                            .sortedBy { it.sortNumber }
+                            .map { AiSkillOptionUi(it.id, it.name, it.description) }
+                            .toImmutableList()
+                    )
+                }
             }
         }
     }
@@ -93,6 +111,7 @@ class AiChatViewModel(
             AiChatIntent.CloseWorkspace -> _uiState.update { it.copy(workspaceOpen = false) }
             AiChatIntent.ClearBookChatMessages -> clearBookChatMessages()
             AiChatIntent.NewBookChat -> newBookChat()
+            is AiChatIntent.StartSkillTask -> startSkillTask(intent.skillId)
         }
     }
 
@@ -161,15 +180,16 @@ class AiChatViewModel(
         }
     }
 
-    /** 把当前会话的消息导出为工作区产物，归到当前书名下，便于在「工作区」按书查找。 */
+    /** 把当前会话的消息导出为工作区产物；有阅读上下文时归到书名下，否则归到「通用对话」。 */
     private fun saveConversationToWorkspace() {
-        val state = _uiState.value
-        val context = state.readingContext ?: return
         val lines = lastMessages.joinToString("\n\n") { msg ->
             val who = if (msg.role == AiMessageRole.USER) "我" else "AI"
             "$who：${msg.content}"
         }.trim()
         if (lines.isBlank()) return
+        val context = _uiState.value.readingContext
+        val ownerName = context?.bookName?.takeIf { it.isNotBlank() } ?: "通用对话"
+        val ownerKey = context?.bookUrl ?: "general"
         viewModelScope.launch {
             runCatching {
                 val now = System.currentTimeMillis()
@@ -177,19 +197,19 @@ class AiChatViewModel(
                     AiArtifact(
                         id = "chat_" + (currentConversationId.value ?: now.toString()),
                         taskType = "chat_save",
-                        bookUrl = context.bookUrl,
+                        bookUrl = ownerKey,
                         contentHash = lines.hashCode().toUInt().toString(16),
                         promptHash = "",
                         modelProfileId = "",
                         status = AiArtifact.STATUS_SUCCESS,
-                        output = "对话记录 · ${context.bookName}\n\n$lines",
+                        output = "对话记录 · $ownerName\n\n$lines",
                         createdAt = now,
                         updatedAt = now
                     )
                 )
             }
             refreshArtifacts()
-            _effects.tryEmit(AiChatEffect.ShowMessage("已保存到《${context.bookName}》的工作区"))
+            _effects.tryEmit(AiChatEffect.ShowMessage("已保存「$ownerName」的对话到工作区"))
         }
     }
 
@@ -212,6 +232,37 @@ class AiChatViewModel(
     }
 
     private val appliedSkillIds = mutableSetOf<String>()
+
+    /**
+     * 从输入框「添加」菜单点技能：新建一个对话任务，标题用技能名，
+     * 立即发一条轻量提示，AI 会通过 load_skill 按需加载技能正文。
+     * 与 [applySkill] 的区别：这里是全新的会话，不会接在旧对话后面。
+     */
+    private fun startSkillTask(skillId: String) {
+        viewModelScope.launch {
+            val skill = aiProfileGateway.listSkills().firstOrNull { it.id == skillId } ?: return@launch
+            streamingJob?.cancel()
+            pendingToolRun = null
+            lastMessages = emptyList()
+            val title = skill.name.take(40).ifBlank { "AI 对话" }
+            val created = aiChatGateway.createConversation(title)
+            // 若处于阅读页小窗（有阅读上下文），把书映射指向新任务，重开小窗回到该任务。
+            _uiState.value.readingContext?.let { ctx ->
+                AppConfigStore.putString(bookChatKey(ctx.bookUrl), created.id)
+            }
+            selectConversation(created.id)
+            // 同步清掉上一段生成的状态，避免 sendMessage 因 isSending 仍为 true 被拦截。
+            _uiState.update {
+                it.copy(
+                    isSending = false,
+                    streamingMessage = null,
+                    pendingToolConfirmation = null,
+                    activeSkillName = skill.name
+                )
+            }
+            sendMessage("请使用「${skill.name}」技能帮我处理当前这本书。")
+        }
+    }
 
     // ---- Conversation lifecycle ----
 
@@ -286,8 +337,12 @@ class AiChatViewModel(
         viewModelScope.launch {
             runCatching {
                 aiChatGateway.createConversation()
-            }.onSuccess {
-                selectConversation(it.id)
+            }.onSuccess { created ->
+                // 阅读页小窗场景：让书映射跟随最新会话，重开小窗不会回到旧会话。
+                _uiState.value.readingContext?.let { ctx ->
+                    AppConfigStore.putString(bookChatKey(ctx.bookUrl), created.id)
+                }
+                selectConversation(created.id)
             }.onFailure { error ->
                 _effects.tryEmit(AiChatEffect.ShowMessage(error.message ?: "Failed to create chat"))
             }
