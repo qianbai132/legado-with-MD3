@@ -428,7 +428,11 @@ class HttpReadAloudService : BaseReadAloudService(),
      * 否则两条路算出的缓存文件名不是同一个。
      */
     private fun useStreamPlayback(): Boolean =
-        readAloudSettings.streamReadAloudAudio && !hasFileSynthesisCue()
+        readAloudSettings.streamReadAloudAudio && !hasFileSynthesisCue() &&
+            // 云端 TTS 没有 HTTP 流式源，必须走文件合成；否则 cueSynthesisFor 会把
+            // 云端占位 HttpTTS(Long.MIN_VALUE) 当成真实源去查表，导致「HTTP TTS 引擎
+            // 不存在」秒失败。系统 TTS 同理本来就不走流式。
+            ReadAloud.coordinatorDefaultEngineType != ReadAloudVoice.ENGINE_CLOUD
 
     /**
      * 段落间隔到点后的续播：只把「现在该播的这一格」交给播放器，不重建本章的合成任务。
@@ -1651,8 +1655,15 @@ class HttpReadAloudService : BaseReadAloudService(),
         val fullText = position.spoken.text
         val cue = playbackQueue.cues.getOrNull(index)
         val downloadVoice = voiceForCue(playbackQueue, index, default)
+        // 云端 TTS 没有 HTTP 流式源：它的 default 是占位 HttpTTS(id=Long.MIN_VALUE)。
+        // 若让云端 voice 进流式分支，下面会把 CLOUD 强转成 ENGINE_HTTP + 占位 id，
+        // httpSourceForVoice 再拿这个负数 id 去 httpTTSDao 查表 → 抛「HTTP TTS 引擎
+        // 不存在：-9223372036854775808」，启动即失败。云端一律走文件合成
+        // （synthesizeSingleCue，见预下载链路的既有处理），与流无关。
+        val cloudVoice = downloadVoice.engineType == ReadAloudVoice.ENGINE_CLOUD
         // 流式通常已经是 HTTP 路由，复用本次结果，避免在主线程重复查询音色和源表。
-        val voice = if (stream && downloadVoice.engineType != ReadAloudVoice.ENGINE_HTTP) {
+        // 云端 voice 不参与强转：保留其 CLOUD 类型，交由文件合成处理。
+        val voice = if (stream && !cloudVoice && downloadVoice.engineType != ReadAloudVoice.ENGINE_HTTP) {
             httpVoiceForCue(index, default)
         } else downloadVoice
         val itemHttpTts = httpSourceForVoice(voice, default)
