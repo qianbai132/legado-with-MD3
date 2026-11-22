@@ -1756,13 +1756,21 @@ class HttpReadAloudService : BaseReadAloudService(),
 
     private fun httpSourceForVoice(voice: ReadAloudVoice, default: HttpTTS): HttpTTS {
         if (voice.engineType != ReadAloudVoice.ENGINE_HTTP) return default
-        return voice.engineId.toLongOrNull()?.let(appDb.httpTTSDao::get)
-            ?: throw NoStackTraceException("HTTP TTS 引擎不存在：${voice.engineId}")
+        val source = voice.engineId.toLongOrNull()?.let(appDb.httpTTSDao::get)
+        if (source != null) return source
+        // 云端引擎的占位 id 是 Long.MIN_VALUE(-9223372036854775808)，HTTP 源表里根本没有。
+        // 一旦有 voice 被错误标成 ENGINE_HTTP 又带着这个占位 id，查表必然失败。
+        // 老代码在这里抛 NoStackTraceException —— 朗读启动即秒停，且日志没有堆栈，极难定位。
+        // 改为记一条可见日志并回退 default（云端场景 default 就是那张占位 HttpTTS），
+        // 让朗读继续走云端/默认合成，彻底消除这条崩溃链。
+        AppLog.put("HTTP TTS 源未找到，已回退默认源: ${voice.engineId}")
+        return default
     }
 
     private fun isVoiceExecutable(voice: ReadAloudVoice): Boolean =
         voice.engineType != ReadAloudVoice.ENGINE_HTTP ||
-            voice.engineId.toLongOrNull()?.let(appDb.httpTTSDao::get) != null
+            (voice.engineId != Long.MIN_VALUE.toString() &&
+                voice.engineId.toLongOrNull()?.let(appDb.httpTTSDao::get) != null)
 
     private fun coordinatorDefaultRoute(default: HttpTTS, engineIds: Set<String>? = null): SpeechEngineRoute {
         val type = ReadAloud.coordinatorDefaultEngineType
@@ -1782,18 +1790,13 @@ class HttpReadAloudService : BaseReadAloudService(),
         engineIds: Set<String>? = null,
     ): ReadAloudVoice {
         val cue = queue.cues.getOrNull(index)
-            ?: return ReadAloudVoice(
-                id = "runtime-http:${default.id}",
-                engineType = ReadAloudVoice.ENGINE_HTTP,
-                engineId = default.id.toString(),
-                speakerId = "",
-                displayName = default.name,
-            )
+            ?: return fallbackVoiceForCoordinator(default, engineIds)
         return SpeechVoiceRouter.route(
             cue = cue,
             isExecutable = { voice ->
                 voice.engineType != ReadAloudVoice.ENGINE_HTTP ||
-                    (engineIds?.contains(voice.engineId) ?: isVoiceExecutable(voice))
+                    (voice.engineId != Long.MIN_VALUE.toString() &&
+                        (engineIds?.contains(voice.engineId) ?: isVoiceExecutable(voice)))
             },
             supportedEngineTypes = setOf(
                 ReadAloudVoice.ENGINE_HTTP,
@@ -1802,6 +1805,29 @@ class HttpReadAloudService : BaseReadAloudService(),
             ),
             defaultRoute = coordinatorDefaultRoute(default, engineIds),
         ).voice!!
+    }
+
+    /**
+     * cue 缺失时的兜底音色，必须沿用当前默认引擎类型。
+     *
+     * 云端场景下 default 是占位 HttpTTS(id=Long.MIN_VALUE)：旧代码写死 ENGINE_HTTP +
+     * default.id，等于造了一个「HTTP 类型 + 负数占位 id」的假音色，落到
+     * httpSourceForVoice 查 HTTP 源表必崩（就是那条 -9223372036854775808）。
+     * coordinatorDefaultRoute 在云端会给出真实的 CLOUD 引擎 id，直接复用它，
+     * 让兜底音色走云端文件合成，而不是伪造 HTTP 源。
+     */
+    private fun fallbackVoiceForCoordinator(
+        default: HttpTTS,
+        engineIds: Set<String>? = null,
+    ): ReadAloudVoice {
+        val route = coordinatorDefaultRoute(default, engineIds)
+        return ReadAloudVoice(
+            id = "runtime-fallback:${route.engineType}:${route.engineId}:${route.speakerId}",
+            engineType = route.engineType,
+            engineId = route.engineId,
+            speakerId = route.speakerId,
+            displayName = default.name,
+        )
     }
 
     /** 流式路径用的角色路由结果：带音色 id，合成时要传给源脚本。 */
@@ -1814,22 +1840,15 @@ class HttpReadAloudService : BaseReadAloudService(),
         index: Int,
         default: HttpTTS,
     ): ReadAloudVoice {
-        val fallback = ReadAloudVoice(
-            id = "runtime-http:${default.id}",
-            engineType = ReadAloudVoice.ENGINE_HTTP,
-            engineId = default.id.toString(),
-            speakerId = "",
-            displayName = default.name,
-        )
+        // 兜底音色沿用当前默认引擎类型；云端场景下 coordinatorDefaultRoute 给出真实
+        // CLOUD 引擎 id，避免再造「HTTP 类型 + 占位 id」的假音色导致查表崩溃。
+        val fallback = fallbackVoiceForCoordinator(default)
         val cue = queue.cues.getOrNull(index) ?: return fallback
         return SpeechVoiceRouter.route(
             cue = cue,
             isExecutable = ::isVoiceExecutable,
             supportedEngineTypes = setOf(ReadAloudVoice.ENGINE_HTTP),
-            defaultRoute = SpeechEngineRoute(
-                engineType = ReadAloudVoice.ENGINE_HTTP,
-                engineId = default.id.toString(),
-            ),
+            defaultRoute = coordinatorDefaultRoute(default),
         ).voice ?: fallback
     }
 
