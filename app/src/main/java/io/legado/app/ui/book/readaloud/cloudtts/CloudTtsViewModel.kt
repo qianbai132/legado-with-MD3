@@ -590,15 +590,25 @@ class CloudTtsViewModel(
             )
         }
         _uiState.update { it.copy(engineEditor = null) }
-        if (picked.isEmpty()) {
+        val firstPicked = picked.firstOrNull()
+        if (firstPicked == null) {
             toast(application.getString(R.string.cloud_tts_engine_saved))
         } else {
-            toast(
-                application.getString(
-                    R.string.cloud_tts_engine_saved_with_voices,
-                    picked.size,
-                )
+            // 根治「测试连接成功但朗读失败」：合并流程用 buildEngine() 落地的引擎
+            // 是全新 UUID，而 ttsEngine 里旧的 ReadAloudEngineSelection 仍指向旧的
+            // engineId/speakerId。朗读时按旧 selection 选出音色，云端合成器按旧
+            // engineId 找不到引擎立即 return false → 抛无堆栈异常 → 启动即秒失败。
+            // 落地音色后把默认朗读选择同步指向本次真正保存的引擎与首个音色，
+            // 保证 selection / 引擎行 / 音色三者 engineId 一致。
+            val firstSpeakerId = firstPicked.id
+                .takeUnless { it == DEFAULT_ENGINE_VOICE_ID }.orEmpty()
+            val selection = ReadAloudEngineSelection(
+                engineType = ReadAloudVoice.ENGINE_CLOUD,
+                engineId = engine.id,
+                speakerId = firstSpeakerId,
+                displayName = engine.name,
             )
+            applyDefaultEngine(GSON.toJson(selection), forBook = false)
         }
     }
 

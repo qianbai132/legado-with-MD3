@@ -1496,7 +1496,16 @@ class HttpReadAloudService : BaseReadAloudService(),
     private fun failSynthesis(generation: Long, error: Throwable, retryOffset: Int? = null) {
         if (generation != playbackGeneration || !isRun) return
         // 调用方在主线程同步提交失败，再清掉已排队的音频。继续时从保留位置重建整章剩余队列。
-        AppLog.put("朗读音频失败，已暂停；继续朗读将重试当前句", error, true)
+        // 把错误摘要一并写进正文：不少朗读失败用的是 NoStackTraceException（无堆栈），
+        // 只记 throwable 时日志列表看不到任何原因，用户点详情也只有一行。拼进 message
+        // 后，日志列表第二行就能直接显示真实失败原因，便于定位与反馈。
+        val reason = error.message?.takeIf { it.isNotBlank() }
+            ?: error::class.java.simpleName
+        AppLog.put(
+            "朗读音频失败，已暂停；继续朗读将重试当前句\n原因：$reason",
+            error,
+            true,
+        )
         pauseReadAloud()
         if (!isChapterTitleAt(nowSpeak)) {
             paragraphStartPos = (retryOffset ?: (currentProgress - readAloudNumber))
@@ -1880,6 +1889,10 @@ class HttpReadAloudService : BaseReadAloudService(),
         return try {
             val synthesized = runCatching { synthesize(part) }.getOrElse {
                 if (it is CancellationException) throw it
+                // 合成器抛出的原因（如云端引擎不存在/停用）原本会被吞成 false，
+                // 上层只能报笼统的「未返回音频」。这里把原因记进日志再吞，
+                // 便于用户和排查直接看到真实失败点。
+                AppLog.put("音频合成失败：${it.message ?: it::class.java.simpleName}", it)
                 false
             }
             currentCoroutineContext().ensureActive()

@@ -49,8 +49,9 @@ class CloudTtsAudioSynthesizer(
         characterPerformance: CharacterPerformanceProfile? = null,
         roleType: SpeechRoleType = SpeechRoleType.Unknown,
     ): Boolean = withContext(Dispatchers.IO) {
-        val engine = engineGateway.get(voice.engineId) ?: return@withContext false
-        if (!engine.enabled) return@withContext false
+        val engine = engineGateway.get(voice.engineId)
+            ?: error("云端引擎不存在或已被替换（engineId=${voice.engineId}），请重新测试连接并保存引擎")
+        if (!engine.enabled) error("云端引擎已停用（${engine.name}），请在云 TTS 设置中启用")
         val config = runCatching {
             GSON.fromJson(voice.traitsJson, CloudTtsVoiceConfig::class.java)
         }.getOrNull() ?: CloudTtsVoiceConfig()
