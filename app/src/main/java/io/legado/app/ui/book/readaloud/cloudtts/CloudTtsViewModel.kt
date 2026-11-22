@@ -554,13 +554,20 @@ class CloudTtsViewModel(
                 speakerId,
             )
             val old = voices.firstOrNull { it.id == voiceId }
+            // 目录里的 styles/roles/locale 是能力标签，不是 API 的 style/role 参数。
+            // 之前把它们塞进 traitsJson 并把三个增强全开，朗读时会拼出服务端不认的
+            // style/instructions（Azure 的 express-as、MiMo 的 (style) 等）导致 400；
+            // 而测试连接走的是干净的默认 request 所以成功。这里按音色向导的默认
+            // 值落地：情感/角色/指令全部留空、三个增强关闭，只保留音色 id 与格式，
+            // 使朗读请求与「测试连接成功」那次完全一致。
             val config = CloudTtsVoiceConfig(
-                locale = discovered.locale,
-                style = discovered.styles.firstOrNull().orEmpty(),
-                role = discovered.roles.firstOrNull().orEmpty(),
-                automaticEmotion = true,
-                characterPersonality = true,
-                thoughtPerformance = true,
+                locale = "",
+                style = "",
+                role = "",
+                instructions = "",
+                automaticEmotion = false,
+                characterPersonality = false,
+                thoughtPerformance = false,
                 speed = 1f,
                 pitch = 1f,
                 volume = 1f,
@@ -575,7 +582,7 @@ class CloudTtsViewModel(
                     displayName = discovered.label.substringBefore(" · ")
                         .ifBlank { discovered.id },
                     traitsJson = GSON.toJson(config),
-                    emotionCatalogJson = GSON.toJson(discovered.styles),
+                    emotionCatalogJson = "[]",
                     createdAt = old?.createdAt ?: now,
                     revision = (old?.revision ?: 0L) + 1L,
                     updatedAt = now,

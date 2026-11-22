@@ -75,22 +75,34 @@ class CloudTtsAudioSynthesizer(
             roleInstruction.takeIf(String::isNotBlank),
             emotionControl.instruction.takeIf(String::isNotBlank),
         ).joinToString(" ")
-        val audio = registry.get(engine.provider).synthesize(
-            engine = engine,
-            request = CloudTtsSynthesisRequest(
-                text = text,
-                voiceId = voice.speakerId,
-                locale = config.locale,
-                style = mappedStyle ?: config.style,
-                role = config.role,
-                instructions = instructions,
-                speed = config.speed,
-                pitch = config.pitch,
-                volume = config.volume,
-                format = config.format,
-                sampleRate = config.sampleRate,
-            ),
+        val request = CloudTtsSynthesisRequest(
+            text = text,
+            voiceId = voice.speakerId,
+            locale = config.locale,
+            style = mappedStyle ?: config.style,
+            role = config.role,
+            instructions = instructions,
+            speed = config.speed,
+            pitch = config.pitch,
+            volume = config.volume,
+            format = config.format,
+            sampleRate = config.sampleRate,
         )
+        val provider = registry.get(engine.provider)
+        val audio = runCatching { provider.synthesize(engine, request) }.getOrElse { throwable ->
+            // 兼容旧版「测试连接自动落地」音色：那版把目录里的能力标签当成 style、
+            // 且情感/性格/思维三个增强全开，拼出的 style/instructions 部分服务端不认，
+            // 返回 HTTP 4xx；而连接测试走的是干净请求所以成功。这里在确认请求确实
+            // 带了这些增强字段、且是 4xx 时，用干净请求（情感/指令/角色全空）重试
+            // 一次，与连接测试成功那次一致。鉴权(401/403)与其它错误不吞。
+            val message = throwable.message.orEmpty()
+            // 只针对「参数不被接受」的 400/422；鉴权 401/403、限流 429 不重试。
+            val isRejectedPayload = "HTTP 400" in message || "HTTP 422" in message
+            val hadEnrichment = request.style.isNotBlank() ||
+                request.instructions.isNotBlank() || request.role.isNotBlank()
+            if (!isRejectedPayload || !hadEnrichment) throw throwable
+            provider.synthesize(engine, request.copy(style = "", instructions = "", role = ""))
+        }
         output.parentFile?.mkdirs()
         output.writeBytes(audio.bytes)
         output.length() > 0
