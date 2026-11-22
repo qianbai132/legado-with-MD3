@@ -63,6 +63,7 @@ import io.legado.app.ui.widget.components.FabMenuItem
 import io.legado.app.ui.widget.components.SearchBar
 import io.legado.app.ui.widget.components.alert.AppAlertDialog
 import io.legado.app.ui.widget.components.button.series.MediumTonalButton
+import io.legado.app.ui.widget.components.checkBox.AppCheckbox
 import io.legado.app.ui.widget.components.filePicker.FilePickerSheet
 import io.legado.app.ui.widget.components.icon.AppIcon
 import io.legado.app.ui.widget.components.icon.AppIcons
@@ -90,6 +91,7 @@ import io.legado.app.ui.widget.components.topbar.TopBarNavigationButton
 import io.legado.app.utils.GSON
 import io.legado.app.utils.toastOnUi
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
@@ -936,6 +938,10 @@ private fun CloudTtsEngineEditorContent(
                                         model = option.profile.defaultModel,
                                         region = option.profile.regionOptions.firstOrNull()
                                             .orEmpty(),
+                                        // provider 变了，之前测试发现的音色不再适用，清空重测。
+                                        discoveredVoices = persistentListOf(),
+                                        selectedVoiceIds = persistentSetOf(),
+                                        voicesDiscovered = false,
                                     )
                                 )
                             }
@@ -1067,8 +1073,71 @@ private fun CloudTtsEngineEditorContent(
                     onClick = { onIntent(CloudTtsIntent.TestEngine) },
                     enabled = !state.testing,
                     modifier = Modifier.fillMaxWidth(),
-                    text = stringResource(if (state.testing) R.string.cloud_tts_testing else R.string.cloud_tts_connection_test),
+                    text = stringResource(if (state.testing) R.string.cloud_tts_test_and_load else R.string.cloud_tts_connection_test_load_voices),
                 )
+            }
+        }
+        // 合并流程：连接测试成功后，音色清单直接内嵌在引擎弹窗内勾选。
+        // 保存引擎时会把勾选的音色一并创建，不用再单独跑一遍音色向导。
+        if (editor.voicesDiscovered) {
+            item {
+                EngineSectionTitle(R.string.cloud_tts_engine_voices_title)
+                AppText(
+                    text = stringResource(R.string.cloud_tts_engine_voices_hint),
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                    style = LegadoTheme.typography.bodySmall,
+                    color = LegadoTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (editor.discoveredVoices.isEmpty()) {
+                item {
+                    AppText(
+                        text = stringResource(R.string.cloud_tts_no_test_voice),
+                        modifier = Modifier.padding(24.dp, 12.dp),
+                    )
+                }
+            } else {
+                item {
+                    val allSelected = editor.discoveredVoices.isNotEmpty() &&
+                        editor.discoveredVoices.all { it.id in editor.selectedVoiceIds }
+                    MediumTonalButton(
+                        onClick = { onIntent(CloudTtsIntent.ToggleAllEditorVoices) },
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                        text = stringResource(
+                            if (allSelected) R.string.cloud_tts_deselect_all_voices
+                            else R.string.cloud_tts_select_all_voices
+                        ),
+                    )
+                }
+                items(editor.discoveredVoices, key = { "${it.id}|${it.locale}" }) { voice ->
+                    val checked = voice.id in editor.selectedVoiceIds
+                    TinyClickableSettingItem(
+                        title = voice.label.substringBefore(" · "),
+                        description = buildString {
+                            append(voice.id)
+                            voice.label.substringAfter(" · ", "").takeIf(String::isNotBlank)
+                                ?.let { append(" | ").append(it) }
+                        },
+                        onClick = { onIntent(CloudTtsIntent.ToggleEditorVoice(voice.id)) },
+                        trailingContent = {
+                            AppCheckbox(
+                                checked = checked,
+                                onCheckedChange = null,
+                            )
+                        },
+                    )
+                }
+                item {
+                    AppText(
+                        text = stringResource(
+                            R.string.cloud_tts_engine_voices_selected_count,
+                            editor.selectedVoiceIds.size,
+                        ),
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                        style = LegadoTheme.typography.labelMedium,
+                        color = LegadoTheme.colorScheme.primary,
+                    )
+                }
             }
         }
     }

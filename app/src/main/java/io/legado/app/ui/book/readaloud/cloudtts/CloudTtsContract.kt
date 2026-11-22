@@ -115,6 +115,15 @@ data class CloudTtsEngineEditorUi(
     val appId: String = "",
     val model: String = "",
     val optionsJson: String = "{}",
+    /**
+     * 连接测试成功后发现的音色。合并流程：所有 provider 统一在引擎弹窗内
+     * 测试连接时拉取，勾选后在保存引擎时一并创建，不必再单独跑一遍音色向导。
+     */
+    val discoveredVoices: ImmutableList<CloudTtsDiscoveredVoiceUi> = persistentListOf(),
+    /** 在引擎弹窗内勾选、保存引擎时一并创建的音色 id。 */
+    val selectedVoiceIds: ImmutableSet<String> = persistentSetOf(),
+    /** 是否已完成一次音色发现——区分「还没测试」与「测过但确实 0 音色」。 */
+    val voicesDiscovered: Boolean = false,
 )
 
 @Stable
@@ -184,6 +193,10 @@ sealed interface CloudTtsIntent {
     data class ConfirmAddToPool(val poolId: String) : CloudTtsIntent
     data class EditVoice(val id: String) : CloudTtsIntent
     data class UpdateEngineEditor(val editor: CloudTtsEngineEditorUi) : CloudTtsIntent
+    /** 引擎弹窗内：勾选/取消某个发现到的音色。 */
+    data class ToggleEditorVoice(val voiceId: String) : CloudTtsIntent
+    /** 引擎弹窗内：全选/取消全选发现到的音色。 */
+    data object ToggleAllEditorVoices : CloudTtsIntent
     data class UpdateVoiceEditor(val editor: TtsVoicePresetEditorUi) : CloudTtsIntent
     data object DismissEngineEditor : CloudTtsIntent
     data object DismissVoiceEditor : CloudTtsIntent

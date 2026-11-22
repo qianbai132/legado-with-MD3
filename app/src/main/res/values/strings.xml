@@ -3450,6 +3450,15 @@
     <string name="read_aloud_position_chars">%1$d chars</string>
     <string name="read_aloud_position_kchars">%1$.1fK chars</string>
     <string name="cloud_tts_engine_saved">Cloud TTS engine saved</string>
+    <string name="cloud_tts_engine_saved_with_voices">Engine saved with %1$d voice(s) added</string>
+    <string name="cloud_tts_connection_test_load_voices">Test &amp; load voices</string>
+    <string name="cloud_tts_test_and_load">Testing &amp; loading…</string>
+    <string name="cloud_tts_connection_success_with_voices">Connected, found %1$d voice(s)</string>
+    <string name="cloud_tts_engine_voices_title">Available voices</string>
+    <string name="cloud_tts_engine_voices_hint">Select voices to add on save. At least one is recommended so the engine can be set as default.</string>
+    <string name="cloud_tts_engine_voices_selected_count">%1$d voice(s) selected</string>
+    <string name="cloud_tts_select_all_voices">Select all voices</string>
+    <string name="cloud_tts_deselect_all_voices">Deselect all voices</string>
     <string name="cloud_tts_voice_saved">Voice preset saved</string>
     <string name="cloud_tts_add_http_engine">Add HTTP TTS engine</string>
     <string name="cloud_tts_cloud_engines">Cloud TTS</string>

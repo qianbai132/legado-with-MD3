@@ -3446,6 +3446,15 @@
     <string name="read_aloud_position_chars">%1$d 字</string>
     <string name="read_aloud_position_kchars">%1$.1f 千字</string>
     <string name="cloud_tts_engine_saved">云 TTS 引擎已保存</string>
+    <string name="cloud_tts_engine_saved_with_voices">引擎已保存，并添加 %1$d 个音色</string>
+    <string name="cloud_tts_connection_test_load_voices">连接测试并读取音色</string>
+    <string name="cloud_tts_test_and_load">测试并读取中…</string>
+    <string name="cloud_tts_connection_success_with_voices">连接成功，发现 %1$d 个音色</string>
+    <string name="cloud_tts_engine_voices_title">可用音色</string>
+    <string name="cloud_tts_engine_voices_hint">勾选的音色会在保存引擎时一并添加。建议至少勾选一个，否则无法设为默认引擎。</string>
+    <string name="cloud_tts_engine_voices_selected_count">已选 %1$d 个音色</string>
+    <string name="cloud_tts_select_all_voices">全选音色</string>
+    <string name="cloud_tts_deselect_all_voices">取消全选</string>
     <string name="cloud_tts_voice_saved">音色预设已保存</string>
     <string name="cloud_tts_add_http_engine">新增 HTTP TTS 引擎</string>
     <string name="cloud_tts_cloud_engines">云 TTS</string>
