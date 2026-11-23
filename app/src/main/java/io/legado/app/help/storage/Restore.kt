@@ -12,6 +12,10 @@ import io.legado.app.R
 import io.legado.app.constant.AppLog
 import io.legado.app.constant.PreferKey
 import io.legado.app.data.appDb
+import io.legado.app.data.entities.AiModelProfile
+import io.legado.app.data.entities.AiProviderProfile
+import io.legado.app.data.entities.AiSkillProfile
+import io.legado.app.data.entities.AiTaskPreset
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookGroup
 import io.legado.app.data.entities.BookMarking
@@ -317,6 +321,24 @@ object Restore : KoinComponent {
             }?.onFailure {
                 AppLog.put("恢复服务器配置出错\n${it.localizedMessage}", it)
             }
+        }
+        // AI 设置恢复：供应商 + 关联的模型/任务预设/技能。用 REPLACE 语义按 id 覆盖，
+        // 单个文件出错不影响其他文件，也不会中断整份备份的恢复。
+        runCatching {
+            fileToListT<AiProviderProfile>(path, Backup.AI_PROVIDERS_FILE)?.let { list ->
+                list.forEach { appDb.aiProfileDao.insertProvider(it) }
+            }
+            fileToListT<AiModelProfile>(path, Backup.AI_MODELS_FILE)?.let { list ->
+                list.forEach { appDb.aiProfileDao.insertModel(it) }
+            }
+            fileToListT<AiTaskPreset>(path, Backup.AI_PRESETS_FILE)?.let { list ->
+                list.forEach { appDb.aiProfileDao.insertPreset(it) }
+            }
+            fileToListT<AiSkillProfile>(path, Backup.AI_SKILLS_FILE)?.let { list ->
+                list.forEach { appDb.aiProfileDao.insertSkill(it) }
+            }
+        }.onFailure {
+            AppLog.put("恢复 AI 设置出错\n${it.localizedMessage}", it)
         }
         File(path, DirectLinkUpload.ruleFileName).takeIf {
             it.exists()

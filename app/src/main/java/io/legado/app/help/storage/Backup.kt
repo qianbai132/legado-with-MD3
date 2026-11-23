@@ -36,6 +36,7 @@ import io.legado.app.utils.writeToOutputStream
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import org.koin.core.context.GlobalContext
 import splitties.init.appCtx
@@ -71,6 +72,12 @@ object Backup {
     /** 旧版备份把全部气泡包打成一个 zip；仅用于恢复旧备份。 */
     const val legacyBubblePackagesFileName = "bubblePackages.zip"
 
+    // AI 设置（供应商/模型/任务预设/技能）随备份一起走，文件名集中定义便于 Backup/Restore 共用。
+    const val AI_PROVIDERS_FILE = "aiProviders.json"
+    const val AI_MODELS_FILE = "aiModels.json"
+    const val AI_PRESETS_FILE = "aiPresets.json"
+    const val AI_SKILLS_FILE = "aiSkills.json"
+
     private val backupFileNames by lazy {
         arrayOf(
             "bookshelf.json",
@@ -97,6 +104,10 @@ object Backup {
             "highlightTagRule.json",
             "tagGroupRule.json",
             "servers.json",
+            AI_PROVIDERS_FILE,
+            AI_MODELS_FILE,
+            AI_PRESETS_FILE,
+            AI_SKILLS_FILE,
             DirectLinkUpload.ruleFileName,
             ReadBookConfig.configFileName,
             ReadBookConfig.shareConfigFileName,
@@ -233,6 +244,17 @@ object Backup {
                         .writeText(it)
                 }
             }
+        }
+        // AI 设置（供应商及其关联的模型/任务预设/技能）随备份一起导出。
+        // 只备份供应商会导致恢复后 AI 设置里没有模型和默认配置，因此四张表一起走。
+        // apiKey/headersJson 等敏感信息与书源等配置一致，按用户既有备份习惯明文落盘。
+        runCatching {
+            writeListToJson(appDb.aiProfileDao.observeProviders().first(), AI_PROVIDERS_FILE, backupPath)
+            writeListToJson(appDb.aiProfileDao.observeModels().first(), AI_MODELS_FILE, backupPath)
+            writeListToJson(appDb.aiProfileDao.observePresets().first(), AI_PRESETS_FILE, backupPath)
+            writeListToJson(appDb.aiProfileDao.observeSkills().first(), AI_SKILLS_FILE, backupPath)
+        }.onFailure {
+            AppLog.put("备份 AI 设置出错\n${it.localizedMessage}", it)
         }
         currentCoroutineContext().ensureActive()
         if (!BackupConfig.backupIgnoreReadConfig) {
