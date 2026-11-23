@@ -4117,10 +4117,4 @@
     <string name="a11y_reorder_position">第 %1$d 项，共 %2$d 项</string>
     <string name="hyper_os4_components">HyperOS 4 风格组件</string>
     <string name="hyper_os4_components_summary">在 Miuix 主题下使用新的玻璃顶栏、标签页与下拉菜单。</string>
-    <string name="cloud_tts_pg_voice_name">音色名称（保存时用）</string>
-    <string name="cloud_tts_pg_save_as_voice">保存为听书音色</string>
-    <string name="cloud_tts_pg_saved_as_voice">已保存为听书音色「%1$s」</string>
-    <string name="cloud_tts_pg_save_cloud_only">仅云端音色可保存为听书音色</string>
-    <string name="cloud_tts_import_voice">从链接导入音色</string>
-    <string name="import_from_file">从文件读取</string>
 </resources>

@@ -8,10 +8,7 @@ import io.legado.app.domain.gateway.BackupSettingsGateway
 import io.legado.app.domain.model.settings.BackupSettings
 import io.legado.app.domain.usecase.BackupRestoreUseCase
 import io.legado.app.domain.usecase.WebDavBackupUseCase
-import io.legado.app.utils.GSON
-import io.legado.app.utils.fromJsonObject
 import io.legado.app.utils.isContentScheme
-import splitties.init.appCtx
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -94,10 +91,6 @@ class BackupConfigViewModel(
             )
 
             BackupConfigIntent.SaveBackupDbIgnoreItems -> saveBackupDbIgnoreItems()
-            is BackupConfigIntent.ImportIgnoreConfig ->
-                _effects.tryEmit(BackupConfigEffect.LaunchIgnoreConfigPicker(intent.scope))
-            is BackupConfigIntent.ImportIgnoreConfigSelected ->
-                importIgnoreConfig(intent.uri, intent.scope)
             BackupConfigIntent.DismissDialog -> _uiState.update { it.copy(activeDialog = null) }
             BackupConfigIntent.SelectBackupDirectory -> launchDirectoryPicker(runBackup = false)
             BackupConfigIntent.SelectBackupAndRunDirectory -> launchDirectoryPicker(runBackup = true)
@@ -252,54 +245,6 @@ class BackupConfigViewModel(
         io.legado.app.help.storage.BackupConfig.saveBackupDbIgnoreConfig()
     }
 
-    /**
-     * 从用户选择的文件读取忽略配置并回填。文件格式为 `Map<String, Boolean>`，
-     * 与 [io.legado.app.help.storage.BackupConfig] 落盘的 restoreIgnore.json /
-     * backupIgnore.json / dbIgnore.json / backupDbIgnore.json 一致，因此这些文件
-     * 既能被本功能读回，也能互相导入。只回填文件中出现的 key，未出现的保持原样。
-     */
-    private fun importIgnoreConfig(uri: Uri, scope: String) = viewModelScope.launch {
-        runCatching {
-            val text = withContext(Dispatchers.IO) {
-                appCtx.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-            }
-            if (text.isNullOrBlank()) error(appCtx.getString(R.string.wrong_format))
-            val loaded = GSON.fromJsonObject<HashMap<String, Boolean>>(text).getOrNull()
-                ?: error(appCtx.getString(R.string.wrong_format))
-            val cfg = io.legado.app.help.storage.BackupConfig
-            when (scope) {
-                SCOPE_RESTORE -> {
-                    loaded.forEach { (k, v) -> cfg.ignoreConfig[k] = v }
-                    cfg.saveIgnoreConfig()
-                }
-                SCOPE_BACKUP -> {
-                    loaded.forEach { (k, v) -> cfg.backupIgnoreConfig[k] = v }
-                    cfg.saveBackupIgnoreConfig()
-                }
-                SCOPE_RESTORE_DB -> {
-                    loaded.forEach { (k, v) -> cfg.dbIgnoreConfig[k] = v }
-                    cfg.saveDbIgnoreConfig()
-                }
-                SCOPE_BACKUP_DB -> {
-                    loaded.forEach { (k, v) -> cfg.backupDbIgnoreConfig[k] = v }
-                    cfg.saveBackupDbIgnoreConfig()
-                }
-            }
-        }.onSuccess {
-            _uiState.update { state ->
-                state.copy(
-                    ignoreItems = loadIgnoreItems(),
-                    backupIgnoreItems = loadBackupIgnoreItems(),
-                    dbIgnoreItems = loadDbIgnoreItems(),
-                    backupDbIgnoreItems = loadBackupDbIgnoreItems(),
-                )
-            }
-            _effects.tryEmit(BackupConfigEffect.ShowMessage(R.string.import_success))
-        }.onFailure {
-            _effects.tryEmit(BackupConfigEffect.ShowMessage(R.string.wrong_format))
-        }
-    }
-
     private fun launchDirectoryPicker(runBackup: Boolean) {
         _uiState.update { it.copy(activeSheet = null) }
         _effects.tryEmit(
@@ -424,11 +369,6 @@ class BackupConfigViewModel(
         }
 
     private companion object {
-        const val SCOPE_RESTORE = "restore"
-        const val SCOPE_BACKUP = "backup"
-        const val SCOPE_RESTORE_DB = "restoreDb"
-        const val SCOPE_BACKUP_DB = "backupDb"
-
         fun loadIgnoreItems() = io.legado.app.help.storage.BackupConfig.ignoreKeys
             .mapIndexed { index, key ->
                 BackupIgnoreItem(

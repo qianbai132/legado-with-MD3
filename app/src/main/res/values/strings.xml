@@ -4117,10 +4117,4 @@
     <string name="cloud_tts_pg_need_text">请先填写指令或文本</string>
     <string name="cloud_tts_pg_history">合成历史（最近 20 次）</string>
     <string name="cloud_tts_pg_clear">清空</string>
-    <string name="cloud_tts_pg_voice_name">音色名称（保存时用）</string>
-    <string name="cloud_tts_pg_save_as_voice">保存为听书音色</string>
-    <string name="cloud_tts_pg_saved_as_voice">已保存为听书音色「%1$s」</string>
-    <string name="cloud_tts_pg_save_cloud_only">仅云端音色可保存为听书音色</string>
-    <string name="cloud_tts_import_voice">从链接导入音色</string>
-    <string name="import_from_file">从文件读取</string>
 </resources>

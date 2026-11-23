@@ -11,14 +11,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -31,7 +29,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -103,16 +100,6 @@ fun BackupConfigRouteScreen(
     val importOldLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri -> uri?.let { ImportOldData.importUri(context, it) } }
-    var pendingIgnoreScope by remember { mutableStateOf<String?>(null) }
-    val ignoreConfigLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        uri?.let { picked ->
-            pendingIgnoreScope?.let { scope ->
-                viewModel.onIntent(BackupConfigIntent.ImportIgnoreConfigSelected(picked, scope))
-            }
-        }
-    }
 
     LaunchedEffect(Unit) {
         viewModel.effects.collectLatest { effect ->
@@ -123,10 +110,6 @@ fun BackupConfigRouteScreen(
                 BackupConfigEffect.LaunchRestoreFilePicker ->
                     restoreFileLauncher.launch(arrayOf("application/zip"))
                 BackupConfigEffect.LaunchImportOldDataPicker -> importOldLauncher.launch(arrayOf("*/*"))
-                is BackupConfigEffect.LaunchIgnoreConfigPicker -> {
-                    pendingIgnoreScope = effect.scope
-                    ignoreConfigLauncher.launch(arrayOf("application/json", "text/plain"))
-                }
                 is BackupConfigEffect.RequestStoragePermission -> {
                     PermissionsCompat.Builder()
                         .addPermissions(*Permissions.Group.STORAGE)
@@ -401,13 +384,6 @@ private fun BackupConfigSheets(
                 )
             )
         },
-        onImport = { tab ->
-            onIntent(
-                BackupConfigIntent.ImportIgnoreConfig(
-                    if (tab == 1) "restoreDb" else "restore"
-                )
-            )
-        },
         onConfirm = { onIntent(BackupConfigIntent.SaveIgnoreItems) },
         onDismissRequest = { onIntent(BackupConfigIntent.SaveIgnoreItems) },
     )
@@ -432,13 +408,6 @@ private fun BackupConfigSheets(
                 )
             )
         },
-        onImport = { tab ->
-            onIntent(
-                BackupConfigIntent.ImportIgnoreConfig(
-                    if (tab == 1) "backupDb" else "backup"
-                )
-            )
-        },
         onConfirm = { onIntent(BackupConfigIntent.SaveBackupIgnoreItems) },
         onDismissRequest = { onIntent(BackupConfigIntent.SaveBackupIgnoreItems) },
     )
@@ -452,7 +421,6 @@ private fun IgnoreItemsSheet(
     dbIgnoreItems: ImmutableList<BackupIgnoreItem>,
     onToggleIgnoreItem: (String, Boolean) -> Unit,
     onToggleDbIgnoreItem: (String, Boolean) -> Unit,
-    onImport: (Int) -> Unit,
     onConfirm: () -> Unit,
     onDismissRequest: () -> Unit,
 ) {
@@ -463,20 +431,11 @@ private fun IgnoreItemsSheet(
         onDismissRequest = onDismissRequest,
         title = title,
         endAction = {
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                IconButton(onClick = { onImport(selectedTab) }) {
-                    Icon(
-                        Icons.Default.FileOpen,
-                        contentDescription = stringResource(R.string.import_from_file),
-                    )
-                }
-                IconButton(onClick = onConfirm) {
-                    Icon(
-                        Icons.Default.Save,
-                        contentDescription = stringResource(R.string.save),
-                    )
-                }
-            }
+            MediumTonalButton(
+                onClick = onConfirm,
+                icon = Icons.Default.Save,
+                contentDescription = stringResource(R.string.save),
+            )
         },
     ) {
         Column(
