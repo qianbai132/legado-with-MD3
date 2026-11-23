@@ -16,6 +16,8 @@ object NotificationId {
     /** 听书音频下载：章节 + 句子两条进度都发在这条通知上 */
     const val ReadAloudAudioDownload = 108
     const val VideoPlayService = 109
+    /** AI 对话后台生成保活通知 */
+    const val AiChatGeneration = 110
     const val Download = 10000
     const val ExportBook = 201
 

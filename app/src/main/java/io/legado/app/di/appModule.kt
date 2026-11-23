@@ -182,6 +182,7 @@ import io.legado.app.domain.gateway.WebDavBackupGateway
 import io.legado.app.domain.repository.BookDomainRepository
 import io.legado.app.domain.usecase.AddBookUseCase
 import io.legado.app.domain.usecase.AddToBookshelfUseCase
+import io.legado.app.domain.usecase.AiChatAppScope
 import io.legado.app.domain.usecase.AiChatGenerationUseCase
 import io.legado.app.domain.usecase.AiTaskManager
 import io.legado.app.domain.usecase.AiTextFactoryUseCase
@@ -592,6 +593,7 @@ val appModule = module {
     single<DictionaryGateway> { DictionaryRepositoryImpl() }
     singleOf(::TranslateChapterUseCase)
     singleOf(::AiChatGenerationUseCase)
+    singleOf(::AiChatAppScope)
 
     single<ImageLoader> {
         ImageLoader.Builder(get())

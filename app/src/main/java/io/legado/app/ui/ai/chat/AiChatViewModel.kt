@@ -1,5 +1,6 @@
 package io.legado.app.ui.ai.chat
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.JsonObject
@@ -18,10 +19,13 @@ import io.legado.app.domain.model.aiErrorKind
 import io.legado.app.domain.model.reasoningContent
 import io.legado.app.domain.model.textContent
 import io.legado.app.domain.model.toolParts
+import io.legado.app.domain.usecase.AiChatAppScope
 import io.legado.app.domain.usecase.AiChatGenerationUseCase
 import io.legado.app.domain.usecase.PendingToolRun
 import io.legado.app.domain.usecase.ToolTraceBuilder
+import io.legado.app.service.AiChatGenerationService
 import io.legado.app.utils.GSON
+import org.koin.core.context.GlobalContext
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CancellationException
@@ -43,7 +47,8 @@ class AiChatViewModel(
     private val aiChatGateway: AiChatGateway,
     private val aiProfileGateway: AiProfileGateway,
     private val aiArtifactGateway: AiArtifactGateway,
-    private val generationUseCase: AiChatGenerationUseCase
+    private val generationUseCase: AiChatGenerationUseCase,
+    private val appScopeProvider: AiChatAppScope
 ) : ViewModel() {
 
     private val currentConversationId = MutableStateFlow<String?>(null)
@@ -51,6 +56,52 @@ class AiChatViewModel(
     private var streamingJob: Job? = null
     private var pendingToolRun: PendingToolRun? = null
     private var thinkingStartTime: Long = 0L
+
+    /**
+     * Launch a generation coroutine on the application scope so it survives the
+     * chat UI being destroyed (switching to the reader / locking the screen).
+     * A foreground service with a partial wake lock keeps the process alive and
+     * lets the user continue reading while the answer is produced.
+     *
+     * A reference count keeps the service alive across chained work (e.g. a tool
+     * confirmation restart): the service is stopped only when the last active
+     * generation coroutine finishes.
+     */
+    private fun launchGeneration(block: suspend kotlinx.coroutines.CoroutineScope.() -> Unit): Job {
+        startGenerationService()
+        return appScopeProvider.scope.launch {
+            try {
+                block()
+            } finally {
+                finishGeneration()
+            }
+        }
+    }
+
+    private fun startGenerationService() {
+        synchronized(this) { activeGenerations++ }
+        runCatching {
+            val context = GlobalContext.get().get<Context>()
+            val title = _uiState.value.readingContext?.bookName
+                ?.takeIf { it.isNotBlank() }
+                ?: context.getString(io.legado.app.R.string.ai_chat)
+            AiChatGenerationService.start(context, title)
+        }
+    }
+
+    private fun finishGeneration() {
+        val remaining = synchronized(this) {
+            activeGenerations--
+            activeGenerations.coerceAtLeast(0)
+        }
+        if (remaining == 0) {
+            runCatching {
+                AiChatGenerationService.stop(GlobalContext.get().get<Context>())
+            }
+        }
+    }
+
+    private var activeGenerations = 0
 
     private val _uiState = MutableStateFlow(AiChatUiState())
     val uiState = _uiState.asStateFlow()
@@ -394,7 +445,7 @@ class AiChatViewModel(
     private fun confirmPendingTool() {
         val pending = pendingToolRun ?: return
         pendingToolRun = null
-        streamingJob = viewModelScope.launch {
+        streamingJob = launchGeneration {
             _uiState.update {
                 it.copy(isSending = true, pendingToolConfirmation = null)
             }
@@ -415,7 +466,7 @@ class AiChatViewModel(
         }
         val rejectedToolParts = pending.deniedToolParts()
         val reasoning = pending.fullReasoning.takeIf { it.isNotBlank() }
-        streamingJob = viewModelScope.launch {
+        streamingJob = launchGeneration {
             _uiState.update {
                 it.copy(
                     isSending = false,
@@ -503,9 +554,9 @@ class AiChatViewModel(
             ?: return
         val historyBeforeParent = lastMessages.filter { it.createdAt < parentUserMsg.createdAt }
         streamingJob?.cancel()
-        streamingJob = viewModelScope.launch {
+        streamingJob = launchGeneration {
             _uiState.update { it.copy(isSending = true) }
-            val conversationId = currentConversationId.value ?: return@launch
+            val conversationId = currentConversationId.value ?: return@launchGeneration
             val fullText = StringBuilder()
             val fullReasoning = StringBuilder()
             val toolTrace = ToolTraceBuilder()
@@ -596,7 +647,7 @@ class AiChatViewModel(
         if (content.isBlank() || _uiState.value.isSending) return
         streamingJob?.cancel()
         val historySnapshot = lastMessages
-        streamingJob = viewModelScope.launch {
+        streamingJob = launchGeneration {
             _uiState.update { it.copy(isSending = true) }
             var conversationIdForMsg: String? = null
             var parentMessageId: String? = null

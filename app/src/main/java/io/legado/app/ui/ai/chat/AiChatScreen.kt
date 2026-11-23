@@ -353,7 +353,15 @@ fun AiChatScreen(
                 ) {
                     if (state.messages.isEmpty() && state.streamingMessage == null) {
                         item {
-                            EmptyChatHint()
+                            val ctx = state.readingContext
+                            if (ctx != null) {
+                                ReadingAgentWelcome(
+                                    context = ctx,
+                                    onPrompt = { onIntent(AiChatIntent.SendMessage(it)) },
+                                )
+                            } else {
+                                EmptyChatHint()
+                            }
                         }
                     }
                     items(state.messages, key = { it.id }) { message ->

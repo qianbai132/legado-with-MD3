@@ -29,7 +29,6 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.runtime.Composable
@@ -175,11 +174,6 @@ fun CloudTtsScreen(
                 title = stringResource(R.string.read_aloud_engines_and_voices),
                 navigationIcon = { TopBarNavigationButton(onClick = onBack) },
                 actions = {
-                    TopBarActionButton(
-                        onClick = { onIntent(CloudTtsIntent.OpenPlayground) },
-                        imageVector = Icons.Default.Science,
-                        contentDescription = stringResource(R.string.cloud_tts_pg_open),
-                    )
                     if (state.selectedTab == CloudTtsTab.Voices) {
                         TopBarActionButton(
                             onClick = { onIntent(CloudTtsIntent.ToggleVoiceBatchMode) },
@@ -666,7 +660,6 @@ fun CloudTtsScreen(
         onDismiss = { onIntent(CloudTtsIntent.DismissDiagnostics) },
         onCopy = { onIntent(CloudTtsIntent.CopyDiagnostics) },
     )
-    TtsPlaygroundSheet(state = state, onIntent = onIntent)
 }
 
 /** 连接测试 / 试听成功后弹出的合成诊断报告面板。 */
