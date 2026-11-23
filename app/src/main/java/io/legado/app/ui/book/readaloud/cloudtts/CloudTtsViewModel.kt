@@ -20,6 +20,7 @@ import io.legado.app.domain.model.readaloud.CloudTtsEngine
 import io.legado.app.domain.model.readaloud.CloudTtsProviderType
 import io.legado.app.domain.model.readaloud.CloudTtsSynthesisDiagnostics
 import io.legado.app.domain.model.readaloud.CloudTtsSynthesisRequest
+import io.legado.app.domain.model.readaloud.toShareText
 import io.legado.app.domain.model.readaloud.CloudTtsVoiceCatalogType
 import io.legado.app.domain.model.readaloud.CloudTtsVoiceConfig
 import io.legado.app.domain.model.readaloud.HttpTtsCatalogDraft
