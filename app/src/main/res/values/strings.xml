@@ -2393,10 +2393,10 @@
     <string name="ai_quick_terms">Terms &amp; allusions</string>
     <string name="ai_quick_plot">Plot Q&amp;A</string>
     <string name="ai_quick_note">Quick note</string>
-    <string name="ai_prompt_summary_chapter">Use the local book tools to read %1$s, then summarize this chapter's main events, plot points and characters as concise bullets.</string>
+    <string name="ai_prompt_summary_chapter">Use the local book tools to read %1$s, then summarize this chapter\'s main events, plot points and characters as concise bullets.</string>
     <string name="ai_prompt_summary_book">Use the local book tools to analyze %1$s: what is the book about? Give me the overall plot, core themes and a character overview.</string>
     <string name="ai_prompt_characters">Analyze %1$s and map out the main characters: their identities, personalities and relationships. Also consult any character profile tools if available.</string>
-    <string name="ai_prompt_terms">Find rare words, proper nouns, historical allusions and hard-to-understand sentences in %1$s, and explain each one's meaning and background.</string>
+    <string name="ai_prompt_terms">Find rare words, proper nouns, historical allusions and hard-to-understand sentences in %1$s, and explain each one\'s meaning and background.</string>
     <string name="ai_prompt_plot">Based on %1$s, quiz me to test my reading comprehension: ask a few questions from easy to hard, then review and explain my answers after I reply.</string>
     <string name="ai_prompt_note">Prepare a reading note for %1$s with key points, memorable quotes and prompts for reflection. Then ask whether to save it to the workspace, and only save after I confirm.</string>
     <string name="ai_error_rate_limit">Request limit reached. Auto-retried but still rate-limited. Please wait a moment and try again, or switch provider/API key.</string>
