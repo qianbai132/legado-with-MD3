@@ -3,6 +3,8 @@ package io.legado.app.ui.book.readaloud.cloudtts
 import android.net.Uri
 import androidx.compose.runtime.Stable
 import io.legado.app.data.entities.HttpTTS
+import io.legado.app.domain.model.readaloud.CloudTtsSynthesisDiagnostics
+import io.legado.app.domain.model.readaloud.ReadAloudVoice
 import io.legado.app.ui.widget.components.importComponents.BaseImportUiState
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableSet
@@ -43,6 +45,38 @@ data class CloudTtsUiState(
      * 大于 0 时才给「恢复」入口——没有排除项时那个按钮按下去没有任何意义。
      */
     val excludedVoiceCount: Int = 0,
+    /** 最近一次连接测试/试听的诊断快照，供诊断面板展示；null 表示还没有。 */
+    val lastDiagnostics: CloudTtsSynthesisDiagnostics? = null,
+    /** 连接测试是否成功（配合 [lastDiagnostics] 决定面板标题与基调）。 */
+    val lastTestSucceeded: Boolean = false,
+    /** 集中式 TTS 调试台是否打开。 */
+    val playgroundOpen: Boolean = false,
+    /** 调试台自身的可编辑状态。 */
+    val playground: CloudTtsPlaygroundUi = CloudTtsPlaygroundUi(),
+)
+
+/**
+ * 集中式 TTS 调试台（对齐 MiMo Studio）的可编辑状态。
+ *
+ * 全程不落库：改引擎/音色/指令/文本只影响调试台里的这一次合成。
+ */
+@Stable
+data class CloudTtsPlaygroundUi(
+    val engineType: String = ReadAloudVoice.ENGINE_CLOUD,
+    val engineId: String = "",
+    /** 真正发给 TTS API 的音色 speakerId。 */
+    val voiceId: String = "",
+    /** UI 下拉里选中的音色数据库 id（用于回显下拉）。 */
+    val voiceUiId: String = "",
+    val instruct: String = "",
+    val text: String = "",
+    val style: String = "",
+    val speed: String = "1.0",
+    val synthesizing: Boolean = false,
+    /** 最近若干次合成的诊断， newest first。 */
+    val history: ImmutableList<CloudTtsSynthesisDiagnostics> = persistentListOf(),
+    /** 最近一次合成音频的播放路径（交给 Screen 用 MediaPlayer 播放）。 */
+    val lastAudioPath: String? = null,
 )
 
 /** 把音色加进角色声音池的弹层内容：待加的音色 + 可选的池列表。 */
@@ -211,12 +245,36 @@ sealed interface CloudTtsIntent {
      * [text] 非空 = 用这句（试听悬浮窗里正在编辑的草稿），否则用已保存的默认文本。
      */
     data class PreviewVoice(val id: String, val text: String? = null) : CloudTtsIntent
+    /**
+     * 带临时参数的试听（试听调试弹窗）：风格/指令/语速只作用这一次，不写回音色。
+     */
+    data class PreviewVoiceTuned(
+        val id: String,
+        val text: String,
+        val style: String,
+        val instructions: String,
+        val speed: String,
+    ) : CloudTtsIntent
     /** 保存默认试听文本（试听悬浮窗的「确定」）。 */
     data class SavePreviewText(val text: String) : CloudTtsIntent
     data object Save : CloudTtsIntent
     data object DismissError : CloudTtsIntent
     data object CopyError : CloudTtsIntent
     data class ReportError(val message: String) : CloudTtsIntent
+    /** 打开最近一次合成的诊断报告面板。 */
+    data object ShowDiagnostics : CloudTtsIntent
+    data object DismissDiagnostics : CloudTtsIntent
+    /** 复制诊断报告文本。 */
+    data object CopyDiagnostics : CloudTtsIntent
+    // —— 集中式 TTS 调试台 ——
+    data object OpenPlayground : CloudTtsIntent
+    data object ClosePlayground : CloudTtsIntent
+    data class UpdatePlayground(val value: CloudTtsPlaygroundUi) : CloudTtsIntent
+    /** 调试台里选中某个音色（UI 模型 id），由 VM 解析成真正的 speakerId。 */
+    data class PlaygroundSelectVoice(val voiceUiId: String) : CloudTtsIntent
+    /** 用调试台当前参数合成一次，成功播放音频并写入历史。 */
+    data object SynthesizePlayground : CloudTtsIntent
+    data object ClearPlaygroundHistory : CloudTtsIntent
 }
 
 sealed interface CloudTtsEffect {
@@ -234,4 +292,6 @@ sealed interface CloudTtsDialog {
     /** 批量删除确认：[count] 只用于文案，真正删的是 [ids]。 */
     data class DeleteVoices(val ids: ImmutableList<String>, val count: Int) : CloudTtsDialog
     data class DefaultEngineScope(val value: String?, val title: String) : CloudTtsDialog
+    /** 连接测试/试听的合成诊断报告。 */
+    data class Diagnostics(val value: CloudTtsSynthesisDiagnostics, val success: Boolean) : CloudTtsDialog
 }

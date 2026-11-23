@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
@@ -29,6 +30,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.runtime.Composable
@@ -125,7 +127,11 @@ fun CloudTtsScreen(
         voice = previewTextVoice,
         initialText = state.previewText,
         onDismiss = { previewTextVoice = null },
-        onPreview = { voice, draft -> onIntent(CloudTtsIntent.PreviewVoice(voice.id, draft)) },
+        onPreview = { voice, draft, style, instructions, speed ->
+            onIntent(
+                CloudTtsIntent.PreviewVoiceTuned(voice.id, draft, style, instructions, speed)
+            )
+        },
         onConfirm = { draft ->
             onIntent(CloudTtsIntent.SavePreviewText(draft))
             previewTextVoice = null
@@ -170,6 +176,11 @@ fun CloudTtsScreen(
                 title = stringResource(R.string.read_aloud_engines_and_voices),
                 navigationIcon = { TopBarNavigationButton(onClick = onBack) },
                 actions = {
+                    TopBarActionButton(
+                        onClick = { onIntent(CloudTtsIntent.OpenPlayground) },
+                        imageVector = Icons.Default.Science,
+                        contentDescription = stringResource(R.string.cloud_tts_pg_open),
+                    )
                     if (state.selectedTab == CloudTtsTab.Voices) {
                         TopBarActionButton(
                             onClick = { onIntent(CloudTtsIntent.ToggleVoiceBatchMode) },
@@ -651,6 +662,122 @@ fun CloudTtsScreen(
             modifier = Modifier.padding(horizontal = 16.dp),
         )
     }
+    ConnectionDiagnosticsSheet(
+        data = state.activeDialog as? CloudTtsDialog.Diagnostics,
+        onDismiss = { onIntent(CloudTtsIntent.DismissDiagnostics) },
+        onCopy = { onIntent(CloudTtsIntent.CopyDiagnostics) },
+    )
+    TtsPlaygroundSheet(state = state, onIntent = onIntent)
+}
+
+/** 连接测试 / 试听成功后弹出的合成诊断报告面板。 */
+@Composable
+private fun ConnectionDiagnosticsSheet(
+    data: CloudTtsDialog.Diagnostics?,
+    onDismiss: () -> Unit,
+    onCopy: () -> Unit,
+) {
+    AppModalBottomSheet(
+        data = data,
+        onDismissRequest = onDismiss,
+        title = stringResource(R.string.cloud_tts_diag_title),
+        startAction = {
+            MediumTonalButton(
+                onClick = onDismiss,
+                icon = Icons.Default.Close,
+                contentDescription = stringResource(R.string.close),
+            )
+        },
+        endAction = {
+            MediumTonalButton(
+                onClick = onCopy,
+                icon = Icons.Default.ContentCopy,
+                contentDescription = stringResource(R.string.cloud_tts_copy_error),
+            )
+        },
+    ) { report ->
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            val status = stringResource(
+                if (report.success) R.string.cloud_tts_diag_ok else R.string.cloud_tts_diag_failed
+            )
+            AppText(
+                text = status,
+                style = LegadoTheme.typography.titleMedium,
+                color = if (report.success) {
+                    LegadoTheme.colorScheme.primary
+                } else {
+                    LegadoTheme.colorScheme.error
+                },
+            )
+            DiagnosticRow(stringResource(R.string.cloud_tts_diag_engine), "${report.value.engineName} · ${report.value.providerLabel}")
+            DiagnosticRow(stringResource(R.string.cloud_tts_diag_model), report.value.model.ifBlank { "-" })
+            DiagnosticRow(stringResource(R.string.cloud_tts_diag_voice), report.value.voiceId.ifBlank { "-" })
+            DiagnosticRow(stringResource(R.string.cloud_tts_diag_elapsed), "${report.value.elapsedMs} ms")
+            DiagnosticRow(stringResource(R.string.cloud_tts_diag_bytes), "${report.value.audioBytes} B")
+            DiagnosticRow(
+                stringResource(R.string.cloud_tts_diag_format),
+                buildString {
+                    append(report.value.format)
+                    report.value.sampleRate?.let { append(" · ${it}Hz") }
+                    report.value.durationMs?.let { append(" · ${it}ms") }
+                },
+            )
+            if (report.value.style.isNotBlank()) {
+                DiagnosticRow(stringResource(R.string.cloud_tts_style_value), report.value.style)
+            }
+            if (report.value.usedFallback) {
+                AppText(
+                    text = stringResource(R.string.cloud_tts_diag_fallback),
+                    style = LegadoTheme.typography.bodySmall,
+                    color = LegadoTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            AppText(
+                text = stringResource(R.string.cloud_tts_diag_request),
+                style = LegadoTheme.typography.labelMedium,
+                color = LegadoTheme.colorScheme.onSurfaceVariant,
+            )
+            AppText(text = report.value.requestPreview.ifBlank { "-" })
+            if (report.value.instructionPreview.isNotBlank()) {
+                AppText(
+                    text = stringResource(R.string.cloud_tts_instructions),
+                    style = LegadoTheme.typography.labelMedium,
+                    color = LegadoTheme.colorScheme.onSurfaceVariant,
+                )
+                AppText(text = report.value.instructionPreview)
+            }
+            report.value.errorMessage?.let { message ->
+                AppText(
+                    text = message,
+                    color = LegadoTheme.colorScheme.error,
+                    style = LegadoTheme.typography.bodySmall,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DiagnosticRow(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth()) {
+        AppText(
+            text = label,
+            style = LegadoTheme.typography.bodyMedium,
+            color = LegadoTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        AppText(
+            text = value,
+            style = LegadoTheme.typography.bodyMedium,
+            modifier = Modifier.weight(2f),
+        )
+    }
 }
 
 @Composable
@@ -1075,6 +1202,14 @@ private fun CloudTtsEngineEditorContent(
                     modifier = Modifier.fillMaxWidth(),
                     text = stringResource(if (state.testing) R.string.cloud_tts_test_and_load else R.string.cloud_tts_connection_test_load_voices),
                 )
+                if (state.lastDiagnostics != null) {
+                    MediumTonalButton(
+                        onClick = { onIntent(CloudTtsIntent.ShowDiagnostics) },
+                        enabled = !state.testing,
+                        modifier = Modifier.fillMaxWidth(),
+                        text = stringResource(R.string.cloud_tts_diag_view_last),
+                    )
+                }
             }
         }
         // 合并流程：连接测试成功后，音色清单直接内嵌在引擎弹窗内勾选。
@@ -1448,15 +1583,16 @@ private fun VoiceEnginePickerSheet(
 }
 
 /**
- * 试听文本悬浮窗：输入框里是当前的默认试听文本，右下角「确定」保存并关闭，
- * 「试听」直接念输入框里的内容（不保存），方便一边改一边听。
+ * 试听调试弹窗：输入试听文本，「试听」直接念输入框里的内容（不保存）。
+ * 展开「高级参数」可临时调整风格 / 指令 / 语速——这些值只作用于本次试听，
+ * 点「确定」仍只保存默认试听文本，不会写回音色配置。
  */
 @Composable
 private fun VoicePreviewTextDialog(
     voice: CloudTtsVoiceItemUi?,
     initialText: String,
     onDismiss: () -> Unit,
-    onPreview: (CloudTtsVoiceItemUi, String) -> Unit,
+    onPreview: (CloudTtsVoiceItemUi, String, String, String, String) -> Unit,
     onConfirm: (String) -> Unit,
 ) {
     // 常驻组合：voice 置 null 后仍留在组合里，缓存最后一份只是为了退场期间标题不空掉
@@ -1464,6 +1600,10 @@ private fun VoicePreviewTextDialog(
     if (voice != null) cached = voice
     val current = cached ?: return
     var text by remember(current.id) { mutableStateOf(initialText) }
+    var showAdvanced by rememberSaveable(current.id) { mutableStateOf(false) }
+    var style by rememberSaveable(current.id) { mutableStateOf("") }
+    var instructions by rememberSaveable(current.id) { mutableStateOf("") }
+    var speed by rememberSaveable(current.id) { mutableStateOf("1.0") }
     AppAlertDialog(
         show = voice != null,
         onDismissRequest = onDismiss,
@@ -1481,7 +1621,45 @@ private fun VoicePreviewTextDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 MediumTonalButton(
-                    onClick = { onPreview(current, text) },
+                    onClick = { showAdvanced = !showAdvanced },
+                    text = stringResource(
+                        if (showAdvanced) R.string.cloud_tts_adv_hide
+                        else R.string.cloud_tts_adv_show
+                    ),
+                )
+                if (showAdvanced) {
+                    AppTextField(
+                        style,
+                        { style = it },
+                        label = stringResource(R.string.cloud_tts_tuned_style),
+                        singleLine = true,
+                        backgroundColor = LegadoTheme.colorScheme.onSheetContent,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    AppTextField(
+                        instructions,
+                        { instructions = it },
+                        label = stringResource(R.string.cloud_tts_tuned_instructions),
+                        minLines = 2,
+                        backgroundColor = LegadoTheme.colorScheme.onSheetContent,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    AppTextField(
+                        speed,
+                        { speed = it },
+                        label = stringResource(R.string.cloud_tts_speed_multiplier),
+                        singleLine = true,
+                        backgroundColor = LegadoTheme.colorScheme.onSheetContent,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    AppText(
+                        text = stringResource(R.string.cloud_tts_tuned_hint),
+                        style = LegadoTheme.typography.bodySmall,
+                        color = LegadoTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                MediumTonalButton(
+                    onClick = { onPreview(current, text, style, instructions, speed) },
                     text = stringResource(R.string.cloud_tts_preview),
                     icon = Icons.Default.PlayArrow,
                 )

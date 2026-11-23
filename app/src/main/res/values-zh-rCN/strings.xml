@@ -3580,6 +3580,37 @@
     <string name="cloud_tts_http_engine_summary">HTTP TTS · 使用规则提供的默认音色</string>
     <string name="cloud_tts_http_catalog_hint">规则音色 · 由 HTTP TTS 配置决定</string>
     <string name="cloud_tts_request_failed">TTS 请求失败</string>
+    <!-- 云 TTS 合成诊断报告 -->
+    <string name="cloud_tts_diag_title">合成诊断报告</string>
+    <string name="cloud_tts_diag_ok">合成成功</string>
+    <string name="cloud_tts_diag_failed">合成失败</string>
+    <string name="cloud_tts_diag_engine">引擎</string>
+    <string name="cloud_tts_diag_model">模型</string>
+    <string name="cloud_tts_diag_voice">音色</string>
+    <string name="cloud_tts_diag_elapsed">耗时</string>
+    <string name="cloud_tts_diag_bytes">音频大小</string>
+    <string name="cloud_tts_diag_format">格式 / 采样</string>
+    <string name="cloud_tts_diag_request">请求文本</string>
+    <string name="cloud_tts_diag_fallback">参数被服务端拒绝，已自动使用干净请求重试。</string>
+    <string name="cloud_tts_diag_view_last">查看上次诊断</string>
+    <string name="cloud_tts_diag_copied">诊断报告已复制</string>
+    <!-- 试听调试弹窗的临时参数 -->
+    <string name="cloud_tts_adv_show">高级参数（风格 / 指令 / 语速）</string>
+    <string name="cloud_tts_adv_hide">收起高级参数</string>
+    <string name="cloud_tts_tuned_style">风格/情感（临时）</string>
+    <string name="cloud_tts_tuned_instructions">朗读指令（临时）</string>
+    <string name="cloud_tts_tuned_hint">以上参数仅用于本次试听，不会保存到音色配置。</string>
+    <!-- 集中式 TTS 调试台 -->
+    <string name="cloud_tts_pg_open">TTS 调试台</string>
+    <string name="cloud_tts_pg_title">TTS 调试台</string>
+    <string name="cloud_tts_pg_hint">像 MiMo Studio 一样调参试音：选引擎与音色，写指令和文本，反复合成对比。所有更改均不会保存。</string>
+    <string name="cloud_tts_pg_instruct">指令 Instruct（风格 / 情感 / 角色描述）</string>
+    <string name="cloud_tts_pg_text">文本 Text</string>
+    <string name="cloud_tts_pg_synthesize">合成并播放</string>
+    <string name="cloud_tts_pg_synthesizing">合成中…</string>
+    <string name="cloud_tts_pg_need_text">请先填写指令或文本</string>
+    <string name="cloud_tts_pg_history">合成历史（最近 20 次）</string>
+    <string name="cloud_tts_pg_clear">清空</string>
     <string name="edit_menu_items">编辑菜单项</string>
     <string name="edit_select_menu">编辑选择菜单</string>
     <string name="insert_bgm_before">插入(前)</string>

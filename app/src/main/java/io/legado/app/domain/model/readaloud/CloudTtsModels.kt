@@ -149,3 +149,58 @@ data class CloudTtsAudio(
     val format: String,
     val sampleRate: Int? = null,
 )
+
+/**
+ * 一次云 TTS 合成的诊断快照，供「测试连接 / 试听 / 调试台」展示。
+ *
+ * 只记录可观测的事实（参数、耗时、字节数），不含 API Key 等敏感信息；
+ * [requestPreview] 会对文本和指令做截断，避免在诊断面板里刷屏。
+ */
+data class CloudTtsSynthesisDiagnostics(
+    val engineName: String,
+    val providerLabel: String,
+    val model: String,
+    val voiceId: String,
+    val requestPreview: String,
+    val instructionPreview: String,
+    val style: String,
+    val elapsedMs: Long,
+    /** 音频字节数（WAV 容器内已含 44 字节头）。 */
+    val audioBytes: Long,
+    val format: String,
+    val sampleRate: Int?,
+    /** 由字节数与采样率估算的时长（毫秒），仅 WAV/PCM 可算。 */
+    val durationMs: Long?,
+    /** 是否命中了「参数被服务端拒绝后自动用干净请求重试」的兼容分支。 */
+    val usedFallback: Boolean,
+    val success: Boolean,
+    val errorMessage: String? = null,
+    val timestamp: Long = System.currentTimeMillis(),
+) {
+    /** 供 UI 一行展示的摘要，例如「1.24s · 12.8KB · 24kHz · wav」。 */
+    fun summaryLabel(): String = buildList {
+        add("%.2fs".format(elapsedMs / 1000f))
+        if (audioBytes > 0) add("%.1fKB".format(audioBytes / 1024f))
+        sampleRate?.let { add("${it / 1000}kHz") }
+        add(format)
+    }.joinToString(" · ")
+}
+
+/** 把诊断快照格式化成可复制的多行报告（不含任何密钥）。 */
+fun CloudTtsSynthesisDiagnostics.toShareText(title: String): String = buildString {
+    appendLine(title)
+    appendLine("─".repeat(24))
+    appendLine("状态      : ${if (success) "成功" else "失败"}")
+    appendLine("引擎      : $engineName（$providerLabel）")
+    appendLine("模型      : $model")
+    appendLine("音色      : $voiceId")
+    appendLine("耗时      : ${elapsedMs} ms")
+    appendLine("音频大小  : $audioBytes bytes")
+    appendLine("格式 / 采样: $format / ${sampleRate ?: "-"} Hz")
+    durationMs?.let { appendLine("估算时长  : ${it} ms") }
+    if (style.isNotBlank()) appendLine("风格      : $style")
+    if (usedFallback) appendLine("兼容重试  : 是（参数被拒后用干净请求重试）")
+    appendLine("请求文本  : $requestPreview")
+    if (instructionPreview.isNotBlank()) appendLine("指令      : $instructionPreview")
+    errorMessage?.let { appendLine("错误      : $it") }
+}

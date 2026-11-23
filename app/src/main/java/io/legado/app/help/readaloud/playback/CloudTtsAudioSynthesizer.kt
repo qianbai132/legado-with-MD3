@@ -1,6 +1,7 @@
 package io.legado.app.help.readaloud.playback
 
 import io.legado.app.domain.gateway.CloudTtsEngineGateway
+import io.legado.app.domain.model.readaloud.CloudTtsSynthesisDiagnostics
 import io.legado.app.domain.model.readaloud.CloudTtsSynthesisRequest
 import io.legado.app.domain.model.readaloud.CloudTtsEngine
 import io.legado.app.domain.model.readaloud.CloudTtsVoiceConfig
@@ -8,6 +9,7 @@ import io.legado.app.domain.model.readaloud.CloudTtsVoiceDescriptor
 import io.legado.app.domain.model.readaloud.CharacterPerformanceProfile
 import io.legado.app.domain.model.readaloud.ReadAloudVoice
 import io.legado.app.domain.model.readaloud.SpeechRoleType
+import io.legado.app.domain.model.readaloud.profile
 import io.legado.app.utils.GSON
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -107,5 +109,59 @@ class CloudTtsAudioSynthesizer(
         output.parentFile?.mkdirs()
         output.writeBytes(audio.bytes)
         output.length() > 0
+    }
+
+    /**
+     * 带诊断的合成：与 [synthesize] 走同一条 provider 链路，但把参数、耗时、
+     * 音频字节数等可观测事实打包成 [CloudTtsSynthesisDiagnostics] 返回给调试功能。
+     * 不抛异常——失败也被包进诊断的 [CloudTtsSynthesisDiagnostics.errorMessage]，
+     * 方便调试台把「请求 → 结果」完整呈现。
+     */
+    suspend fun synthesizeDetailed(
+        engine: CloudTtsEngine,
+        request: CloudTtsSynthesisRequest,
+        output: File,
+    ): CloudTtsSynthesisDiagnostics = withContext(Dispatchers.IO) {
+        val startedAt = System.nanoTime()
+        var usedFallback = false
+        val result = runCatching {
+            val provider = registry.get(engine.provider)
+            val audio = runCatching { provider.synthesize(engine, request) }.getOrElse { throwable ->
+                // 与 synthesize(voice) 一致的兼容策略：参数被 400/422 拒绝时用干净请求重试一次。
+                val message = throwable.message.orEmpty()
+                val rejected = "HTTP 400" in message || "HTTP 422" in message
+                val enriched = request.style.isNotBlank() ||
+                    request.instructions.isNotBlank() || request.role.isNotBlank()
+                if (!rejected || !enriched) throw throwable
+                usedFallback = true
+                provider.synthesize(engine, request.copy(style = "", instructions = "", role = ""))
+            }
+            output.parentFile?.mkdirs()
+            output.writeBytes(audio.bytes)
+            Triple(audio.bytes.size.toLong(), audio.format, audio.sampleRate)
+        }
+        val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000
+        val (bytes, format, sampleRate) = result.getOrNull() ?: Triple(0L, request.format, null)
+        val durationMs = if (bytes > 44 && sampleRate != null && sampleRate > 0) {
+            // WAV 44 字节头；PCM16 单声道 = 2 字节/采样。
+            (bytes - 44) * 1000L / (sampleRate * 2L)
+        } else null
+        CloudTtsSynthesisDiagnostics(
+            engineName = engine.name,
+            providerLabel = engine.provider.profile.displayName,
+            model = engine.model,
+            voiceId = request.voiceId,
+            requestPreview = request.text.take(160),
+            instructionPreview = request.instructions.take(160),
+            style = request.style,
+            elapsedMs = elapsedMs,
+            audioBytes = bytes,
+            format = format,
+            sampleRate = sampleRate,
+            durationMs = durationMs,
+            usedFallback = usedFallback,
+            success = result.isSuccess && bytes > 0,
+            errorMessage = result.exceptionOrNull()?.message,
+        )
     }
 }
