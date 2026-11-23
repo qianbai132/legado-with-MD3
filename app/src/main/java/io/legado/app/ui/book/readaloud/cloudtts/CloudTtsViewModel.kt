@@ -954,13 +954,13 @@ class CloudTtsViewModel(
             format = sourceConfig?.format?.takeIf(String::isNotBlank) ?: "mp3",
             sampleRate = sourceConfig?.sampleRate,
         ))
-        val emotionCatalog = GSON.toJson(
+        val emotionCatalogStyles: List<String> =
             _uiState.value.discoveredVoices.firstOrNull { it.id == pg.voiceId }?.styles
                 ?: sourceVoice?.let { runCatching {
                     GSON.fromJson(it.emotionCatalogJson, Array<String>::class.java)?.toList()
                 }.getOrNull() }
                 ?: emptyList()
-        )
+        val emotionCatalog = GSON.toJson(emotionCatalogStyles)
         val voice = ReadAloudVoice(
             id = id,
             engineType = ReadAloudVoice.ENGINE_CLOUD,
