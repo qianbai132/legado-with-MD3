@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -178,6 +179,17 @@ internal fun TtsPlaygroundSheet(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
+            // 音色名称（保存为听书音色时用）
+            item {
+                AppTextField(
+                    pg.voiceName,
+                    { update(pg.copy(voiceName = it)) },
+                    label = stringResource(R.string.cloud_tts_pg_voice_name),
+                    singleLine = true,
+                    backgroundColor = LegadoTheme.colorScheme.onSheetContent,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
             // 合成按钮
             item {
                 MediumTonalButton(
@@ -188,6 +200,15 @@ internal fun TtsPlaygroundSheet(
                         else R.string.cloud_tts_pg_synthesize
                     ),
                     icon = Icons.Default.PlayArrow,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            // 保存为听书音色：把调试参数落成真实音色，朗读链路可选用
+            item {
+                MediumTonalButton(
+                    onClick = { onIntent(CloudTtsIntent.SavePlaygroundAsVoice) },
+                    text = stringResource(R.string.cloud_tts_pg_save_as_voice),
+                    icon = Icons.Default.Save,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }

@@ -343,6 +343,7 @@ class CloudTtsViewModel(
             is CloudTtsIntent.PlaygroundSelectVoice -> playgroundSelectVoice(intent.voiceUiId)
             CloudTtsIntent.SynthesizePlayground -> synthesizePlayground()
             CloudTtsIntent.ClearPlaygroundHistory -> clearPlaygroundHistory()
+            CloudTtsIntent.SavePlaygroundAsVoice -> savePlaygroundAsVoice()
             CloudTtsIntent.Save -> if (_uiState.value.engineEditor != null) saveEngine() else saveVoice()
             CloudTtsIntent.DismissError -> _uiState.update { it.copy(activeDialog = null) }
             CloudTtsIntent.CopyError -> copyError()
@@ -901,6 +902,82 @@ class CloudTtsViewModel(
 
     private fun clearPlaygroundHistory() = _uiState.update {
         it.copy(playground = it.playground.copy(history = persistentListOf(), lastAudioPath = null))
+    }
+
+    /**
+     * 把调试台当前参数落成一条真实的听书音色：引擎/音色/指令/风格/语速全部写入
+     * [ReadAloudVoice.traitsJson]，之后朗读链路就能像普通音色一样选用它。
+     *
+     * 落库逻辑与音色编辑器 [buildVoice] 保持一致：同一「引擎+音色」复用同一 id 并递增
+     * revision，等于把调试结果应用回这条音色；source 音色已存在时继承其 locale/pitch/
+     * volume/format，避免调试台没暴露的字段被清零。
+     */
+    private fun savePlaygroundAsVoice() = viewModelScope.launch {
+        val pg = _uiState.value.playground
+        if (pg.voiceId.isBlank()) {
+            return@launch toast(application.getString(R.string.cloud_tts_select_voice_first))
+        }
+        if (pg.engineType != ReadAloudVoice.ENGINE_CLOUD) {
+            return@launch toast(application.getString(R.string.cloud_tts_pg_save_cloud_only))
+        }
+        val engine = engines.firstOrNull { it.id == pg.engineId }
+            ?: return@launch toast(application.getString(R.string.cloud_tts_engine_missing))
+        val speed = pg.speed.toFloatOrNull()
+            ?: return@launch toast(application.getString(R.string.cloud_tts_numeric_voice_parameters))
+        if (!speed.isFinite() || speed !in 0.1f..4f) {
+            return@launch toast(application.getString(R.string.cloud_tts_system_params_range))
+        }
+        // 继承源音色未暴露的字段（locale/pitch/volume/format）
+        val sourceVoice = voices.firstOrNull { it.id == pg.voiceUiId }
+            ?: voices.firstOrNull {
+                it.engineType == ReadAloudVoice.ENGINE_CLOUD &&
+                    it.engineId == pg.engineId && it.speakerId == pg.voiceId
+            }
+        val sourceConfig = sourceVoice?.let { runCatching {
+            GSON.fromJson(it.traitsJson, CloudTtsVoiceConfig::class.java)
+        }.getOrNull() }
+        val speakerId = pg.voiceId
+        val id = SpeechIdentity.voiceId(ReadAloudVoice.ENGINE_CLOUD, pg.engineId, speakerId)
+        val old = voices.firstOrNull { it.id == id }
+        val now = System.currentTimeMillis()
+        val traits = GSON.toJson(CloudTtsVoiceConfig(
+            locale = sourceConfig?.locale.orEmpty(),
+            style = pg.style,
+            role = sourceConfig?.role.orEmpty(),
+            instructions = pg.instruct,
+            automaticEmotion = sourceConfig?.automaticEmotion,
+            characterPersonality = sourceConfig?.characterPersonality,
+            thoughtPerformance = sourceConfig?.thoughtPerformance,
+            speed = speed,
+            pitch = sourceConfig?.pitch ?: 1f,
+            volume = sourceConfig?.volume ?: 1f,
+            format = sourceConfig?.format?.takeIf(String::isNotBlank) ?: "mp3",
+            sampleRate = sourceConfig?.sampleRate,
+        ))
+        val emotionCatalog = GSON.toJson(
+            _uiState.value.discoveredVoices.firstOrNull { it.id == pg.voiceId }?.styles
+                ?: sourceVoice?.let { runCatching {
+                    GSON.fromJson(it.emotionCatalogJson, Array<String>::class.java)?.toList()
+                }.getOrNull() }
+                ?: emptyList()
+        )
+        val voice = ReadAloudVoice(
+            id = id,
+            engineType = ReadAloudVoice.ENGINE_CLOUD,
+            engineId = pg.engineId,
+            speakerId = speakerId,
+            displayName = pg.voiceName.ifBlank {
+                sourceVoice?.displayName ?: engine.name
+            },
+            traitsJson = traits,
+            emotionCatalogJson = emotionCatalog,
+            managedBy = ReadAloudVoice.MANAGED_BY_USER,
+            createdAt = old?.createdAt ?: now,
+            revision = (old?.revision ?: 0L) + 1L,
+            updatedAt = now,
+        )
+        voiceGateway.upsertVoice(voice)
+        toast(application.getString(R.string.cloud_tts_pg_saved_as_voice, voice.displayName))
     }
 
     /** 引擎弹窗内切换某音色的勾选。 */

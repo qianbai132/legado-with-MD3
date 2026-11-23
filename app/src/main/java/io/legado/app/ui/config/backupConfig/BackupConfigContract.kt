@@ -1,5 +1,6 @@
 package io.legado.app.ui.config.backupConfig
 
+import android.net.Uri
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Stable
 import io.legado.app.domain.model.settings.BackupSettings
@@ -73,6 +74,10 @@ sealed interface BackupConfigIntent {
     data object SaveDbIgnoreItems : BackupConfigIntent
     data class ToggleBackupDbIgnoreItem(val key: String, val value: Boolean) : BackupConfigIntent
     data object SaveBackupDbIgnoreItems : BackupConfigIntent
+    /** 打开「从文件读取忽略配置」选择器；scope 指明回填到哪一组。 */
+    data class ImportIgnoreConfig(val scope: String) : BackupConfigIntent
+    /** 用户选好忽略配置文件后，读取并按 scope 回填。 */
+    data class ImportIgnoreConfigSelected(val uri: Uri, val scope: String) : BackupConfigIntent
     data object DismissDialog : BackupConfigIntent
     data object SelectBackupDirectory : BackupConfigIntent
     data object SelectBackupAndRunDirectory : BackupConfigIntent
@@ -92,6 +97,7 @@ sealed interface BackupConfigEffect {
     data object LaunchBackupAndRunDirectoryPicker : BackupConfigEffect
     data object LaunchRestoreFilePicker : BackupConfigEffect
     data object LaunchImportOldDataPicker : BackupConfigEffect
+    data class LaunchIgnoreConfigPicker(val scope: String) : BackupConfigEffect
     data class RequestStoragePermission(val path: String, val mode: String) : BackupConfigEffect
     data class ShowMessage(@StringRes val messageRes: Int, val argument: String? = null) : BackupConfigEffect
 }

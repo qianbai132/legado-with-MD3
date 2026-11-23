@@ -72,6 +72,8 @@ data class CloudTtsPlaygroundUi(
     val text: String = "",
     val style: String = "",
     val speed: String = "1.0",
+    /** 「保存为听书音色」时给新音色起的名字；为空则用引擎/音色默认名。 */
+    val voiceName: String = "",
     val synthesizing: Boolean = false,
     /** 最近若干次合成的诊断， newest first。 */
     val history: ImmutableList<CloudTtsSynthesisDiagnostics> = persistentListOf(),
@@ -275,6 +277,11 @@ sealed interface CloudTtsIntent {
     /** 用调试台当前参数合成一次，成功播放音频并写入历史。 */
     data object SynthesizePlayground : CloudTtsIntent
     data object ClearPlaygroundHistory : CloudTtsIntent
+    /**
+     * 把调试台当前参数（引擎/音色/指令/风格/语速）保存为一个真实的听书音色，
+     * 之后在朗读链路里就能选用。写入前仍走与音色编辑器一致的校验与落库。
+     */
+    data object SavePlaygroundAsVoice : CloudTtsIntent
 }
 
 sealed interface CloudTtsEffect {

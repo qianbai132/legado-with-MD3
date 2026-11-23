@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -181,6 +182,12 @@ fun CloudTtsScreen(
                         contentDescription = stringResource(R.string.cloud_tts_pg_open),
                     )
                     if (state.selectedTab == CloudTtsTab.Voices) {
+                        // 从链接导入音色：复用 HTTP TTS 源导入（支持 URL/JSON/分享链接）
+                        TopBarActionButton(
+                            onClick = { showHttpTtsUrlInput = true },
+                            imageVector = Icons.Default.CloudDownload,
+                            contentDescription = stringResource(R.string.cloud_tts_import_voice),
+                        )
                         TopBarActionButton(
                             onClick = { onIntent(CloudTtsIntent.ToggleVoiceBatchMode) },
                             imageVector = if (state.voiceBatchMode) {
