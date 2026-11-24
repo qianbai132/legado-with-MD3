@@ -108,6 +108,7 @@ import io.legado.app.ui.book.readaloud.morph.rememberReadAloudMorphState
 import io.legado.app.ui.book.readaloud.player.ReadAloudPlayerViewModel
 import io.legado.app.ui.main.bookshelf.BookshelfCoverPreloader
 import io.legado.app.ui.theme.LegadoTheme
+import io.legado.app.ui.ai.chat.AiFloatingChatHost
 import io.legado.app.ui.theme.LocalAppUiConfiguration
 import io.legado.app.ui.theme.ThemeResolver
 import io.legado.app.ui.welcome.WelcomeActivity
@@ -1100,6 +1101,8 @@ open class MainActivity : BaseComposeActivity(), AudioPlay.CallBack {
                             )
                         }
                     }
+                    // AI 对话悬浮窗：提升到 App 顶层，全 App 范围内显示，最小化后任务继续运行。
+                    AiFloatingChatHost()
                 }
                 // 关闭预见性返回时由宿主在导航层之前接管返回：手势不跟手预览，
                 // 松手后走普通出栈，popTransitionSpec 的返回动画照常播放。

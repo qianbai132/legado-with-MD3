@@ -42,7 +42,9 @@ import io.legado.app.data.entities.readRecord.ReadRecordIdentity
 import io.legado.app.data.entities.readRecord.ReadRecordSession
 import io.legado.app.data.repository.ReadRecordRepository
 import io.legado.app.domain.gateway.AppLocaleGateway
+import io.legado.app.domain.gateway.CloudTtsEngineGateway
 import io.legado.app.domain.gateway.ReadStyleGateway
+import io.legado.app.domain.model.readaloud.CloudTtsEngine
 import io.legado.app.data.repository.HttpTtsRepository
 import io.legado.app.data.entities.ReadAloudVoiceEntity
 import io.legado.app.help.DirectLinkUpload
@@ -339,6 +341,17 @@ object Restore : KoinComponent {
             }
         }.onFailure {
             AppLog.put("恢复 AI 设置出错\n${it.localizedMessage}", it)
+        }
+        // 云 TTS 引擎恢复：先清空现有引擎，再按备份重建。经网关 upsert 会用设备
+        // KeyStore 重新加密 apiKey/secretKey，兼容从其他设备迁移过来的明文备份。
+        runCatching {
+            val gateway = get<CloudTtsEngineGateway>()
+            gateway.getAll().forEach { gateway.delete(it) }
+            fileToListT<CloudTtsEngine>(path, Backup.CLOUD_TTS_ENGINES_FILE)?.let { list ->
+                list.forEach { gateway.upsert(it) }
+            }
+        }.onFailure {
+            AppLog.put("恢复云 TTS 引擎出错\n${it.localizedMessage}", it)
         }
         File(path, DirectLinkUpload.ruleFileName).takeIf {
             it.exists()

@@ -20,6 +20,8 @@ data class AiChatUiState(
     val readingContext: AiReadingContext? = null,
     val workspaceOpen: Boolean = false,
     val workspaceArtifacts: ImmutableList<AiArtifact> = persistentListOf(),
+    /** 工作区已导出的文件路径（真文件工作区）。 */
+    val workspaceFiles: ImmutableList<String> = persistentListOf(),
     /** 阅读页技能小窗标题栏显示的技能名（仅标识，不注入正文）。 */
     val activeSkillName: String? = null,
     /** 供输入框「添加」菜单选择的技能（已启用，含书源制作）。 */
@@ -115,6 +117,10 @@ sealed interface AiChatIntent {
     data object SaveConversationToWorkspace : AiChatIntent
     data object ToggleWorkspace : AiChatIntent
     data object CloseWorkspace : AiChatIntent
+    /** 把工作区产物导出为真实 .md 文件并刷新文件列表。 */
+    data object ExportWorkspace : AiChatIntent
+    /** 仅刷新工作区文件列表。 */
+    data object RefreshWorkspaceFiles : AiChatIntent
     /** 清空当前小窗会话的全部消息（保留会话与书名映射）。 */
     data object ClearBookChatMessages : AiChatIntent
     /** 为当前小窗的书新建一个全新会话，并更新 bookUrl 映射。 */

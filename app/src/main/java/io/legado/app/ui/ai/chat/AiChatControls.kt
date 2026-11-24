@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Minimize
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -31,6 +32,7 @@ import io.legado.app.ui.widget.components.card.NormalCard
 import io.legado.app.ui.widget.components.divider.PillDivider
 import io.legado.app.ui.widget.components.menuItem.RoundDropdownMenu
 import io.legado.app.ui.widget.components.menuItem.RoundDropdownMenuItem
+import io.legado.app.ui.widget.components.alert.AppAlertDialog
 import io.legado.app.ui.widget.components.modalBottomSheet.AppModalBottomSheet
 import io.legado.app.ui.widget.components.text.AppText
 import kotlinx.collections.immutable.ImmutableList
@@ -134,7 +136,10 @@ fun AiConversationMenuSheet(
     currentConversationId: String?,
     onNewChat: () -> Unit,
     onSelectConversation: (String) -> Unit,
+    onDeleteConversation: (String) -> Unit,
 ) {
+    // 长按会话弹出删除确认，避免误触。
+    var conversationToDelete by remember { mutableStateOf<String?>(null) }
     AppModalBottomSheet(
         show = show,
         onDismissRequest = onDismissRequest,
@@ -168,6 +173,7 @@ fun AiConversationMenuSheet(
                         onDismissRequest()
                         onSelectConversation(conversation.id)
                     },
+                    onLongClick = { conversationToDelete = conversation.id },
                     containerColor = if (selected) {
                         LegadoTheme.colorScheme.primaryContainer
                     } else {
@@ -195,6 +201,19 @@ fun AiConversationMenuSheet(
             Spacer(Modifier.height(24.dp))
         }
     }
+    AppAlertDialog(
+        show = conversationToDelete != null,
+        onDismissRequest = { conversationToDelete = null },
+        title = stringResource(R.string.delete),
+        text = stringResource(R.string.sure_del),
+        confirmText = stringResource(R.string.delete),
+        onConfirm = {
+            conversationToDelete?.let { onDeleteConversation(it) }
+            conversationToDelete = null
+        },
+        dismissText = stringResource(R.string.cancel),
+        onDismiss = { conversationToDelete = null },
+    )
 }
 
 /** 顶栏右上角溢出菜单：新对话 / 工作区 / 保存 / 删除。 */
@@ -206,6 +225,7 @@ fun AiChatOverflowMenu(
     onWorkspace: () -> Unit,
     onSave: () -> Unit,
     onDelete: () -> Unit,
+    onMinimize: (() -> Unit)? = null,
     onBack: (() -> Unit)? = null,
 ) {
     RoundDropdownMenu(expanded = expanded, onDismissRequest = onDismiss) { dismiss ->
@@ -230,8 +250,17 @@ fun AiChatOverflowMenu(
             color = LegadoTheme.colorScheme.error,
             onClick = { dismiss(); onDelete() },
         )
-        if (onBack != null) {
+        if (onMinimize != null || onBack != null) {
             PillDivider()
+        }
+        if (onMinimize != null) {
+            RoundDropdownMenuItem(
+                text = stringResource(R.string.ai_minimize),
+                leadingIcon = { Icon(Icons.Default.Minimize, contentDescription = null) },
+                onClick = { dismiss(); onMinimize() },
+            )
+        }
+        if (onBack != null) {
             RoundDropdownMenuItem(
                 text = stringResource(R.string.back),
                 onClick = { dismiss(); onBack() },

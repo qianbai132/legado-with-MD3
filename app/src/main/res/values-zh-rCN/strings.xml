@@ -2463,6 +2463,8 @@
     <string name="ai_workspace">工作区</string>
     <string name="ai_workspace_empty">还没有保存的内容。你让 AI 保存的笔记、摘要、档案会出现在这里。</string>
     <string name="ai_workspace_no_content">无内容</string>
+    <string name="ai_workspace_export">导出全部</string>
+    <string name="ai_workspace_files">已导出文件</string>
     <string name="ai_quick_fab">打开 AI 快捷面板</string>
     <string name="ai_quick_panel_title">问 AI</string>
     <string name="ai_quick_skills">技能</string>
@@ -2477,6 +2479,7 @@
     <string name="ai_add_no_skills">暂无可用技能，可在 AI 设置里添加。</string>
     <string name="ai_chat_menu">对话菜单</string>
     <string name="ai_more">更多选项</string>
+    <string name="ai_minimize">最小化</string>
     <string name="ai_delete_current">删除当前对话</string>
     <string name="ai_delete_current_confirm">确定删除当前对话？此操作不可撤销。</string>
     <string name="ai_chat_empty">开始一段对话</string>

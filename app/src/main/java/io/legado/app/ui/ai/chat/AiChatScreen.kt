@@ -101,6 +101,7 @@ import io.legado.app.ui.widget.components.card.GlassCard
 import io.legado.app.ui.widget.components.card.NormalCard
 import io.legado.app.ui.widget.components.text.AppText
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
@@ -628,6 +629,8 @@ fun AiChatScreen(
     if (state.workspaceOpen) {
         AiWorkspaceSheet(
             artifacts = state.workspaceArtifacts,
+            workspaceFiles = state.workspaceFiles,
+            onExport = { onIntent(AiChatIntent.ExportWorkspace) },
             onDismiss = { onIntent(AiChatIntent.CloseWorkspace) }
         )
     }
@@ -656,11 +659,13 @@ fun AiChatScreen(
     )
 }
 
-/** AI 工作区：展示 AI 通过工具保存下来的产物（书签、笔记、人物档案等），可点开看全文。 */
+/** AI 工作区：按分类的资料卡 + 已导出的真实文件列表，产物可一键导出为 .md 文件。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun AiWorkspaceSheet(
     artifacts: ImmutableList<AiArtifact>,
+    workspaceFiles: ImmutableList<String> = persistentListOf(),
+    onExport: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     var expandedId by remember { mutableStateOf<String?>(null) }
@@ -670,12 +675,19 @@ internal fun AiWorkspaceSheet(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
         ) {
-            AppText(
-                text = stringResource(R.string.ai_workspace),
-                style = LegadoTheme.typography.titleMediumEmphasized
-            )
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                AppText(
+                    text = stringResource(R.string.ai_workspace),
+                    style = LegadoTheme.typography.titleMediumEmphasized,
+                    modifier = Modifier.weight(1f)
+                )
+                MediumTonalButton(
+                    onClick = onExport,
+                    text = stringResource(R.string.ai_workspace_export),
+                )
+            }
             Spacer(Modifier.height(8.dp))
-            if (artifacts.isEmpty()) {
+            if (artifacts.isEmpty() && workspaceFiles.isEmpty()) {
                 AppText(
                     text = stringResource(R.string.ai_workspace_empty),
                     style = LegadoTheme.typography.bodyMedium,
@@ -683,24 +695,22 @@ internal fun AiWorkspaceSheet(
                     modifier = Modifier.padding(vertical = 24.dp)
                 )
             } else {
-                // 按书分区：每本书一个区，区内再列产物。
-                val groups = artifacts.groupBy { it.bookUrl }
                 LazyColumn(
-                    modifier = Modifier.heightIn(max = 420.dp),
+                    modifier = Modifier.heightIn(max = 460.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    groups.forEach { (bookUrl, items) ->
-                        item(key = "header_$bookUrl") {
+                    // ① 产物资料卡：按分类分组，每组一张卡。
+                    val grouped = artifacts.groupBy { AiWorkspaceFiles.categoryOf(it.taskType).title }
+                    grouped.forEach { (categoryTitle, items) ->
+                        item(key = "cat_$categoryTitle") {
                             AppText(
-                                text = bookSectionTitle(bookUrl, items),
+                                text = "$categoryTitle（${items.size}）",
                                 style = LegadoTheme.typography.titleSmallEmphasized,
                                 color = LegadoTheme.colorScheme.primary,
                                 modifier = Modifier.padding(top = 10.dp, bottom = 2.dp),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
                             )
                         }
-                        items(items, key = { it.id }) { artifact ->
+                        items(items, key = { "a_" + it.id }) { artifact ->
                             val expanded = expandedId == artifact.id
                             Column(
                                 modifier = Modifier
@@ -735,26 +745,32 @@ internal fun AiWorkspaceSheet(
                             }
                         }
                     }
+                    // ② 已导出的真实文件列表。
+                    if (workspaceFiles.isNotEmpty()) {
+                        item(key = "files_header") {
+                            AppText(
+                                text = stringResource(R.string.ai_workspace_files),
+                                style = LegadoTheme.typography.titleSmallEmphasized,
+                                color = LegadoTheme.colorScheme.primary,
+                                modifier = Modifier.padding(top = 14.dp, bottom = 2.dp),
+                            )
+                        }
+                        items(workspaceFiles, key = { "f_$it" }) { path ->
+                            AppText(
+                                text = path.substringAfterLast('/'),
+                                style = LegadoTheme.typography.bodySmall,
+                                color = LegadoTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(vertical = 3.dp),
+                            )
+                        }
+                    }
                 }
             }
             Spacer(Modifier.height(16.dp))
         }
     }
-}
-
-/** 工作区分区标题：优先取对话产物里记下的书名，否则用 bookUrl 的末段。 */
-private fun bookSectionTitle(bookUrl: String, items: List<AiArtifact>): String {
-    if (bookUrl.isBlank()) return "—"
-    items.firstOrNull { it.taskType == "chat_save" }?.output?.let { out ->
-        val marker = "对话记录 · "
-        val idx = out.indexOf(marker)
-        if (idx >= 0) {
-            val rest = out.substring(idx + marker.length)
-            val name = rest.substringBefore('\n').trim()
-            if (name.isNotBlank()) return name
-        }
-    }
-    return bookUrl.substringAfterLast('/').takeIf { it.isNotBlank() } ?: bookUrl
 }
 
 @Composable

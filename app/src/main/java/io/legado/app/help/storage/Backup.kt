@@ -9,6 +9,7 @@ import io.legado.app.constant.PreferKey
 import io.legado.app.data.repository.HttpTtsRepository
 import io.legado.app.data.appDb
 import io.legado.app.domain.gateway.BackupSettingsGateway
+import io.legado.app.domain.gateway.CloudTtsEngineGateway
 import io.legado.app.domain.gateway.ReadStyleGateway
 import io.legado.app.exception.NoStackTraceException
 import io.legado.app.help.AppWebDav
@@ -59,6 +60,9 @@ object Backup {
     private val backupSettingsGateway: BackupSettingsGateway
         get() = GlobalContext.get().get()
 
+    private val cloudTtsEngineGateway: CloudTtsEngineGateway
+        get() = GlobalContext.get().get()
+
     val backupPath: String by lazy {
         appCtx.filesDir.getFile("backup").createFolderIfNotExist().absolutePath
     }
@@ -77,6 +81,9 @@ object Backup {
     const val AI_MODELS_FILE = "aiModels.json"
     const val AI_PRESETS_FILE = "aiPresets.json"
     const val AI_SKILLS_FILE = "aiSkills.json"
+    // 云 TTS 引擎（含 baseUrl/apiKey 等凭据）随备份一起走。凭据经网关取明文写盘，
+    // 避免把设备 KeyStore 绑定的密文备份到新设备后无法解密。
+    const val CLOUD_TTS_ENGINES_FILE = "cloudTtsEngines.json"
 
     private val backupFileNames by lazy {
         arrayOf(
@@ -108,6 +115,7 @@ object Backup {
             AI_MODELS_FILE,
             AI_PRESETS_FILE,
             AI_SKILLS_FILE,
+            CLOUD_TTS_ENGINES_FILE,
             DirectLinkUpload.ruleFileName,
             ReadBookConfig.configFileName,
             ReadBookConfig.shareConfigFileName,
@@ -255,6 +263,12 @@ object Backup {
             writeListToJson(appDb.aiProfileDao.observeSkills().first(), AI_SKILLS_FILE, backupPath)
         }.onFailure {
             AppLog.put("备份 AI 设置出错\n${it.localizedMessage}", it)
+        }
+        // 云 TTS 引擎：经网关取明文（apiKey/secretKey 已解密）写盘，保证备份可跨设备恢复。
+        runCatching {
+            writeListToJson(cloudTtsEngineGateway.getAll(), CLOUD_TTS_ENGINES_FILE, backupPath)
+        }.onFailure {
+            AppLog.put("备份云 TTS 引擎出错\n${it.localizedMessage}", it)
         }
         currentCoroutineContext().ensureActive()
         if (!BackupConfig.backupIgnoreReadConfig) {

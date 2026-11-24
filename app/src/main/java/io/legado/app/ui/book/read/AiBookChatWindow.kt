@@ -84,6 +84,7 @@ fun AiBookChatWindow(
     chapterTitle: String,
     skillId: String?,
     skillName: String?,
+    onMinimize: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val viewModel: AiChatViewModel = koinViewModel(key = "bookChat_${bookUrl.hashCode()}")
@@ -222,6 +223,7 @@ fun AiBookChatWindow(
                                 conversationToDelete = it
                             }
                         },
+                        onMinimize = onMinimize,
                         onBack = onDismiss,
                     )
                 }
@@ -342,6 +344,8 @@ fun AiBookChatWindow(
     if (state.workspaceOpen) {
         AiWorkspaceSheet(
             artifacts = state.workspaceArtifacts,
+            workspaceFiles = state.workspaceFiles,
+            onExport = { viewModel.onIntent(AiChatIntent.ExportWorkspace) },
             onDismiss = { viewModel.onIntent(AiChatIntent.CloseWorkspace) },
         )
     }
@@ -353,6 +357,7 @@ fun AiBookChatWindow(
         currentConversationId = state.currentConversationId,
         onNewChat = { viewModel.onIntent(AiChatIntent.NewBookChat) },
         onSelectConversation = { viewModel.onIntent(AiChatIntent.SelectConversation(it)) },
+        onDeleteConversation = { viewModel.onIntent(AiChatIntent.DeleteConversation(it)) },
     )
 
     AppAlertDialog(

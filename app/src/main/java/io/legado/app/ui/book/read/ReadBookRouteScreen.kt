@@ -85,6 +85,7 @@ import io.legado.app.help.IntentHelp
 import io.legado.app.model.ReadBook
 import io.legado.app.model.SourceCallBack
 import io.legado.app.model.translation.TranslationChapterStatus
+import io.legado.app.ui.ai.chat.AiFloatingChatController
 import io.legado.app.ui.book.read.page.entities.PageDirection
 import io.legado.app.ui.book.read.sheet.CastSheetVisuals
 import io.legado.app.ui.book.read.sheet.LocalCastSheetVisuals
@@ -187,8 +188,6 @@ fun ReadBookRouteScreen(
     val readPreferences by viewModel.readPreferences.collectAsStateWithLifecycle()
     val markingState by viewModel.markingState.collectAsStateWithLifecycle()
     val readerRenderState by readerSessionViewModel.uiState.collectAsStateWithLifecycle()
-    // 当前打开的「书籍 AI 对话小窗」参数；null 表示未打开。
-    var bookChatWindow by remember { mutableStateOf<BookChatWindowRequest?>(null) }
     val readerPageWindow = readerRenderState.pageWindow
     val readerPaginationError = readerRenderState.paginationError
     val readerBackground = readerRenderState.background
@@ -878,29 +877,21 @@ fun ReadBookRouteScreen(
                     onOpenChat = {
                         val book = state.book
                         if (book != null) {
-                            // 悬浮球点开即小对话框；技能在对话框内的「添加」菜单里选择。
-                            bookChatWindow = BookChatWindowRequest(
-                                bookUrl = book.bookUrl,
-                                bookName = book.name.orEmpty(),
-                                chapterTitle = state.chapterName.orEmpty(),
-                                skillId = null,
-                                skillName = null,
+                            // 悬浮球点开全局 AI 对话宿主（全 App 显示），技能在对话框内的「添加」菜单里选择。
+                            AiFloatingChatController.open(
+                                AiFloatingChatController.ChatRequest(
+                                    bookUrl = book.bookUrl,
+                                    bookName = book.name.orEmpty(),
+                                    chapterTitle = state.chapterName.orEmpty(),
+                                    skillId = null,
+                                    skillName = null,
+                                )
                             )
                         }
                     },
                 )
             }
-            // 书籍 AI 对话小窗（每本书一个独立会话，可拖动，带保存键）。
-            bookChatWindow?.let { req ->
-                AiBookChatWindow(
-                    bookUrl = req.bookUrl,
-                    bookName = req.bookName,
-                    chapterTitle = req.chapterTitle,
-                    skillId = req.skillId,
-                    skillName = req.skillName,
-                    onDismiss = { bookChatWindow = null },
-                )
-            }
+            // 书籍 AI 对话小窗已提升到 MainActivity 顶层全局宿主，全 App 显示。
             AnimatedVisibility(
                 visible = state.translationStatus == TranslationChapterStatus.Thinking,
                 enter = fadeIn(tween(180)) + scaleIn(tween(220), initialScale = 0.88f),
@@ -1243,12 +1234,3 @@ internal fun rememberReadStyleFilePickers(
         }
     }
 }
-
-/** 阅读页「书籍 AI 对话小窗」的打开参数。 */
-internal data class BookChatWindowRequest(
-    val bookUrl: String,
-    val bookName: String,
-    val chapterTitle: String,
-    val skillId: String?,
-    val skillName: String?,
-)

@@ -158,8 +158,13 @@ class AiChatViewModel(
             is AiChatIntent.ApplySkill -> applySkill(intent.skillId)
             is AiChatIntent.OpenBookChat -> openBookChat(intent.context, intent.skillId, intent.skillName)
             AiChatIntent.SaveConversationToWorkspace -> saveConversationToWorkspace()
-            AiChatIntent.ToggleWorkspace -> _uiState.update { it.copy(workspaceOpen = !it.workspaceOpen) }
+            AiChatIntent.ToggleWorkspace -> {
+                _uiState.update { it.copy(workspaceOpen = !it.workspaceOpen) }
+                refreshWorkspaceFiles()
+            }
             AiChatIntent.CloseWorkspace -> _uiState.update { it.copy(workspaceOpen = false) }
+            AiChatIntent.ExportWorkspace -> exportWorkspace()
+            AiChatIntent.RefreshWorkspaceFiles -> refreshWorkspaceFiles()
             AiChatIntent.ClearBookChatMessages -> clearBookChatMessages()
             AiChatIntent.NewBookChat -> newBookChat()
             is AiChatIntent.StartSkillTask -> startSkillTask(intent.skillId)
@@ -268,6 +273,30 @@ class AiChatViewModel(
         runCatching {
             val artifacts = aiArtifactGateway.observeAllArtifacts().first()
             _uiState.update { it.copy(workspaceArtifacts = artifacts.toImmutableList()) }
+        }
+    }
+
+    /** 刷新工作区里已导出的真实文件列表。 */
+    private fun refreshWorkspaceFiles() {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                val paths = AiWorkspaceFiles.listExportedFiles().map { it.absolutePath }
+                _uiState.update { it.copy(workspaceFiles = paths.toImmutableList()) }
+            }
+        }
+    }
+
+    /** 把所有工作区产物导出为 .md 文件，并刷新文件列表。 */
+    private fun exportWorkspace() {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val count = runCatching {
+                AiWorkspaceFiles.exportAll(_uiState.value.workspaceArtifacts)
+            }.getOrDefault(0)
+            runCatching {
+                val paths = AiWorkspaceFiles.listExportedFiles().map { it.absolutePath }
+                _uiState.update { it.copy(workspaceFiles = paths.toImmutableList()) }
+            }
+            _effects.tryEmit(AiChatEffect.ShowMessage("已导出 $count 个文件到工作区"))
         }
     }
 
