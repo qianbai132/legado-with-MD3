@@ -2424,6 +2424,7 @@
     <string name="ai_chat_menu">Chat menu</string>
     <string name="ai_more">More options</string>
     <string name="ai_minimize">Minimize</string>
+    <string name="ai_select_model">Switch model</string>
     <string name="ai_delete_current">Delete current chat</string>
     <string name="ai_delete_current_confirm">Delete this conversation? This cannot be undone.</string>
     <string name="ai_chat_empty">Start a conversation</string>

@@ -38,13 +38,18 @@ class AiChatGenerationUseCase(
         history: List<AiChatMessageUi>,
         reasoningLevel: AiReasoningLevel,
         conversationId: String? = null,
-        readingContext: AiReadingContext? = null
+        readingContext: AiReadingContext? = null,
+        modelIdOverride: String? = null
     ): AiGenerateRequest {
         val preset = aiProfileGateway.getTaskPreset(AiTaskType.CHAT)
             ?: aiProfileGateway.getTaskPreset(AiTaskType.TRANSLATE_CHAPTER)
             ?: error("Please configure a default AI model first")
+        // 顶栏可切换模型：显式选中的模型覆盖任务预设的默认模型。
+        val model = modelIdOverride?.takeIf { it.isNotBlank() }
+            ?.let { aiProfileGateway.getModelConfig(it) }
+            ?: preset.model
         return AiGenerateRequest(
-            model = preset.model,
+            model = model,
             messages = buildRequestMessages(userContent, history, conversationId, readingContext),
             params = preset.params.copy(
                 reasoningLevel = reasoningLevel.resolveModelDefault(preset.params.reasoningLevel)

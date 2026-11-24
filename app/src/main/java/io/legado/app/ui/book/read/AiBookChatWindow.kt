@@ -52,6 +52,7 @@ import io.legado.app.ui.ai.chat.AiChatIntent
 import io.legado.app.ui.ai.chat.AiChatOverflowMenu
 import io.legado.app.ui.ai.chat.AiChatViewModel
 import io.legado.app.ui.ai.chat.AiConversationMenuSheet
+import io.legado.app.ui.ai.chat.AiModelPicker
 import io.legado.app.ui.ai.chat.AiReadingContext
 import io.legado.app.ui.ai.chat.AiWorkspaceSheet
 import io.legado.app.ui.theme.LegadoTheme
@@ -84,10 +85,12 @@ fun AiBookChatWindow(
     chapterTitle: String,
     skillId: String?,
     skillName: String?,
+    nonce: String = "",
     onMinimize: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val viewModel: AiChatViewModel = koinViewModel(key = "bookChat_${bookUrl.hashCode()}")
+    // nonce 每次打开都不同 → 每次都是全新 ViewModel（新会话）。
+    val viewModel: AiChatViewModel = koinViewModel(key = "bookChat_${bookUrl.hashCode()}_$nonce")
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     val configuration = LocalConfiguration.current
@@ -132,9 +135,9 @@ fun AiBookChatWindow(
             toast = null
         }
     }
-    LaunchedEffect(bookUrl, skillId) {
+    LaunchedEffect(nonce, bookUrl, skillId) {
         viewModel.onIntent(
-            AiChatIntent.OpenBookChat(
+            AiChatIntent.FreshBookChat(
                 context = AiReadingContext(
                     bookUrl = bookUrl,
                     bookName = bookName,
@@ -206,6 +209,12 @@ fun AiBookChatWindow(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+                AiModelPicker(
+                    models = state.availableModels,
+                    currentModelId = state.currentModelId,
+                    fallbackLabel = state.activeSkillName.orEmpty(),
+                    onSelect = { viewModel.onIntent(AiChatIntent.SelectModel(it)) },
+                )
                 Box {
                     MediumTonalButton(
                         onClick = { overflowExpanded = true },

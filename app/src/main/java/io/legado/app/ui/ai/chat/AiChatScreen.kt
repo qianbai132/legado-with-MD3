@@ -601,6 +601,13 @@ fun AiChatScreen(
                                 }
                             }
                         }
+                        // 模型切换：点当前模型名直接选择已启用模型。
+                        AiModelPicker(
+                            models = state.availableModels,
+                            currentModelId = state.currentModelId,
+                            fallbackLabel = modelName,
+                            onSelect = { onIntent(AiChatIntent.SelectModel(it)) },
+                        )
                         // 右上角：溢出菜单（新对话 / 工作区 / 保存 / 删除 / 返回）。
                         Box {
                             MediumTonalButton(

@@ -10,6 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Minimize
@@ -266,6 +267,42 @@ fun AiChatOverflowMenu(
                 text = stringResource(R.string.back),
                 onClick = { dismiss(); onBack() },
             )
+        }
+    }
+}
+
+/**
+ * 顶栏模型选择器：显示当前模型，点击展开已启用模型列表直接切换。
+ * [currentModelId] 为空时表示使用任务预设的默认模型。
+ */
+@Composable
+fun AiModelPicker(
+    models: ImmutableList<AiModelOptionUi>,
+    currentModelId: String?,
+    fallbackLabel: String,
+    onSelect: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val currentLabel = models.firstOrNull { it.id == currentModelId }?.displayName
+        ?: fallbackLabel.ifBlank { stringResource(R.string.ai_chat) }
+    Box {
+        MediumTonalButton(
+            onClick = { expanded = true },
+            icon = Icons.Default.AutoAwesome,
+            text = currentLabel,
+            contentDescription = stringResource(R.string.ai_select_model),
+        )
+        RoundDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) { dismiss ->
+            models.forEach { model ->
+                RoundDropdownMenuItem(
+                    text = model.displayName,
+                    isSelected = model.id == currentModelId,
+                    onClick = {
+                        dismiss()
+                        onSelect(model.id)
+                    },
+                )
+            }
         }
     }
 }

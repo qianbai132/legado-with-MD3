@@ -114,6 +114,7 @@ class AiChatViewModel(
         observeCurrentMessages()
         observeArtifacts()
         observeSkills()
+        observeModels()
     }
 
     private fun observeArtifacts() {
@@ -141,6 +142,23 @@ class AiChatViewModel(
         }
     }
 
+    /** 顶栏模型选择器：观察已启用模型。 */
+    private fun observeModels() {
+        viewModelScope.launch {
+            aiProfileGateway.observeModels().collect { models ->
+                _uiState.update { current ->
+                    current.copy(
+                        availableModels = models
+                            .filter { it.enabled }
+                            .sortedBy { it.sortNumber }
+                            .map { AiModelOptionUi(it.id, it.displayName, "") }
+                            .toImmutableList()
+                    )
+                }
+            }
+        }
+    }
+
     fun onIntent(intent: AiChatIntent) {
         when (intent) {
             AiChatIntent.NewConversation -> createConversation()
@@ -150,6 +168,10 @@ class AiChatViewModel(
             AiChatIntent.ConfirmPendingTool -> confirmPendingTool()
             AiChatIntent.RejectPendingTool -> rejectPendingTool()
             is AiChatIntent.UpdateReasoningLevel -> updateReasoningLevel(intent.level)
+            is AiChatIntent.SelectModel -> {
+                _uiState.update { it.copy(currentModelId = intent.modelId) }
+                _effects.tryEmit(AiChatEffect.ShowMessage("已切换模型"))
+            }
             is AiChatIntent.RegenerateMessage -> regenerateMessage(intent.messageId)
             is AiChatIntent.SwitchBranch -> switchBranch(intent.messageId)
             is AiChatIntent.DeleteConversation -> deleteConversation(intent.id)
@@ -157,6 +179,7 @@ class AiChatViewModel(
             is AiChatIntent.SetReadingContext -> _uiState.update { it.copy(readingContext = intent.context) }
             is AiChatIntent.ApplySkill -> applySkill(intent.skillId)
             is AiChatIntent.OpenBookChat -> openBookChat(intent.context, intent.skillId, intent.skillName)
+            is AiChatIntent.FreshBookChat -> freshBookChat(intent.context, intent.skillId, intent.skillName)
             AiChatIntent.SaveConversationToWorkspace -> saveConversationToWorkspace()
             AiChatIntent.ToggleWorkspace -> {
                 _uiState.update { it.copy(workspaceOpen = !it.workspaceOpen) }
@@ -192,6 +215,23 @@ class AiChatViewModel(
             selectConversation(conversation)
             if (!skillId.isNullOrBlank()) {
                 // 只发一句提示，不贴 SKILL.md 正文；AI 按需调用 load_skill 加载完整指令。
+                val label = skillName?.takeIf { it.isNotBlank() } ?: skillId
+                sendMessage("请使用「$label」技能帮我处理当前这本书。")
+            }
+        }
+    }
+
+    /**
+     * 每次打开悬浮窗都新建会话：设置阅读上下文，总是 createConversation，
+     * 不读写 bookUrl 的长期映射（避免影响其它入口的历史会话）。
+     */
+    private fun freshBookChat(context: AiReadingContext, skillId: String?, skillName: String?) {
+        _uiState.update { it.copy(readingContext = context, activeSkillName = skillName) }
+        viewModelScope.launch {
+            val title = "《${context.bookName}》对话".take(40)
+            val created = aiChatGateway.createConversation(title).id
+            selectConversation(created)
+            if (!skillId.isNullOrBlank()) {
                 val label = skillName?.takeIf { it.isNotBlank() } ?: skillId
                 sendMessage("请使用「$label」技能帮我处理当前这本书。")
             }
@@ -599,7 +639,8 @@ class AiChatViewModel(
                     history = historyBeforeParent,
                     reasoningLevel = state.reasoningLevel,
                     conversationId = conversationId,
-                    readingContext = state.readingContext
+                    readingContext = state.readingContext,
+                    modelIdOverride = state.currentModelId
                 )
                 setStreamingPlaceholder()
                 try {
@@ -704,7 +745,8 @@ class AiChatViewModel(
                     history = historySnapshot,
                     reasoningLevel = state.reasoningLevel,
                     conversationId = conversationIdForMsg,
-                    readingContext = state.readingContext
+                    readingContext = state.readingContext,
+                    modelIdOverride = state.currentModelId
                 )
                 setStreamingPlaceholder()
                 try {

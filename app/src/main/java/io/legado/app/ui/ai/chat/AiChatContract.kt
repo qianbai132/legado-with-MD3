@@ -25,7 +25,19 @@ data class AiChatUiState(
     /** 阅读页技能小窗标题栏显示的技能名（仅标识，不注入正文）。 */
     val activeSkillName: String? = null,
     /** 供输入框「添加」菜单选择的技能（已启用，含书源制作）。 */
-    val availableSkills: ImmutableList<AiSkillOptionUi> = persistentListOf()
+    val availableSkills: ImmutableList<AiSkillOptionUi> = persistentListOf(),
+    /** 顶栏可切换的 AI 模型列表（已启用）。 */
+    val availableModels: ImmutableList<AiModelOptionUi> = persistentListOf(),
+    /** 当前选中的模型 id；空表示用任务预设的默认模型。 */
+    val currentModelId: String? = null
+)
+
+/** 顶栏模型选择器里的一项。 */
+@Stable
+data class AiModelOptionUi(
+    val id: String,
+    val displayName: String,
+    val providerName: String,
 )
 
 /** 输入框「添加」菜单里的一项技能。 */
@@ -97,6 +109,8 @@ sealed interface AiChatIntent {
     data object ConfirmPendingTool : AiChatIntent
     data object RejectPendingTool : AiChatIntent
     data class UpdateReasoningLevel(val level: AiReasoningLevel) : AiChatIntent
+    /** 顶栏切换当前对话使用的模型。 */
+    data class SelectModel(val modelId: String) : AiChatIntent
     data class RegenerateMessage(val messageId: String) : AiChatIntent
     data class SwitchBranch(val messageId: String) : AiChatIntent
     data class DeleteConversation(val id: String) : AiChatIntent
@@ -125,6 +139,15 @@ sealed interface AiChatIntent {
     data object ClearBookChatMessages : AiChatIntent
     /** 为当前小窗的书新建一个全新会话，并更新 bookUrl 映射。 */
     data object NewBookChat : AiChatIntent
+    /**
+     * 每次打开悬浮窗都新开一个会话：设置上下文并总是新建会话，
+     * 不复用 bookUrl 映射，也不更新长期映射（避免污染下次打开）。
+     */
+    data class FreshBookChat(
+        val context: AiReadingContext,
+        val skillId: String? = null,
+        val skillName: String? = null
+    ) : AiChatIntent
 
     // ---- 添加菜单 ----
     /**

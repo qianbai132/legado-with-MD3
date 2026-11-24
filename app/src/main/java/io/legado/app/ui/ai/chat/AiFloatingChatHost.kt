@@ -46,6 +46,8 @@ object AiFloatingChatController {
         val chapterTitle: String = "",
         val skillId: String? = null,
         val skillName: String? = null,
+        /** 每次打开生成，作为 ViewModel key，保证每次都是新会话。 */
+        val nonce: String = "",
     )
 
     private val _request = MutableStateFlow<ChatRequest?>(null)
@@ -61,7 +63,8 @@ object AiFloatingChatController {
     val bubbleY = _bubbleY.asStateFlow()
 
     fun open(req: ChatRequest) {
-        _request.value = req
+        // 每次打开都分配新的 nonce → 新的 ViewModel 实例 → 新会话。
+        _request.value = req.copy(nonce = System.nanoTime().toString())
         _minimized.value = false
     }
 
@@ -105,6 +108,7 @@ fun AiFloatingChatHost() {
             chapterTitle = req.chapterTitle,
             skillId = req.skillId,
             skillName = req.skillName,
+            nonce = req.nonce,
             onMinimize = { AiFloatingChatController.minimize() },
             onDismiss = { AiFloatingChatController.close() },
         )
