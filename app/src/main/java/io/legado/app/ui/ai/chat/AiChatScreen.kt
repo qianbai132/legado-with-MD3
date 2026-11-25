@@ -39,6 +39,7 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
@@ -948,6 +949,7 @@ private fun RecentChatsDrawer(
                             renameText = conversations.firstOrNull { it.id == id }?.title.orEmpty()
                         }
                     },
+                    icon = Icons.Default.Edit,
                     enabled = selectedIds.size == 1,
                     contentDescription = stringResource(R.string.ai_rename)
                 )
@@ -968,7 +970,7 @@ private fun RecentChatsDrawer(
                         multiSelect = false
                         selectedIds = emptySet()
                     },
-                    icon = Icons.Default.Menu,
+                    icon = Icons.Default.Close,
                     contentDescription = stringResource(R.string.cancel)
                 )
             }

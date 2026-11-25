@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.JsonObject
 import io.legado.app.data.entities.AiArtifact
+import io.legado.app.data.entities.AiChatConversation
 import io.legado.app.help.config.AppConfigStore
 import io.legado.app.domain.gateway.AiArtifactGateway
 import io.legado.app.domain.gateway.AiChatGateway
@@ -36,6 +37,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
@@ -390,12 +392,21 @@ class AiChatViewModel(
 
     private fun observeConversations() {
         viewModelScope.launch {
-            aiChatGateway.observeConversations().collect { conversations ->
+            combine(
+                aiChatGateway.observeConversations(),
+                AiConversationPins.pinnedIds
+            ) { conversations, pinnedIds -> conversations to pinnedIds }
+                .collect { (conversations, pinnedIds) ->
                 val selectedId = currentConversationId.value
+                // 置顶的排前面，其余按更新时间倒序。
+                val sorted = conversations.sortedWith(
+                    compareByDescending<AiChatConversation> { it.id in pinnedIds }
+                        .thenByDescending { it.updatedAt }
+                )
                 _uiState.update { current ->
                     val previousConversations = current.conversations.associateBy { it.id }
                     current.copy(
-                        conversations = conversations.map {
+                        conversations = sorted.map {
                             val previous = previousConversations[it.id]
                             AiChatConversationUi(
                                 id = it.id,
@@ -404,7 +415,7 @@ class AiChatViewModel(
                                 isSelected = it.id == selectedId,
                                 providerName = previous?.providerName.orEmpty(),
                                 modelName = previous?.modelName.orEmpty(),
-                                isPinned = it.isPinned
+                                isPinned = it.id in pinnedIds
                             )
                         }.toImmutableList()
                     )
@@ -601,6 +612,7 @@ class AiChatViewModel(
         if (conversationIds.isEmpty()) return
         viewModelScope.launch {
             conversationIds.forEach { aiChatGateway.deleteConversation(it) }
+            AiConversationPins.remove(conversationIds)
             if (currentConversationId.value in conversationIds) {
                 currentConversationId.value = null
                 _uiState.update { it.copy(messages = persistentListOf(), currentConversationId = null) }
@@ -618,7 +630,7 @@ class AiChatViewModel(
     private fun setConversationsPinned(conversationIds: List<String>, pinned: Boolean) {
         if (conversationIds.isEmpty()) return
         viewModelScope.launch {
-            conversationIds.forEach { aiChatGateway.setConversationPinned(it, pinned) }
+            AiConversationPins.setPinned(conversationIds, pinned)
         }
     }
 
