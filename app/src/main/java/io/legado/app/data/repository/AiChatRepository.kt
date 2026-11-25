@@ -126,6 +126,11 @@ class AiChatRepository(
             )
         }
 
+    override suspend fun setConversationPinned(conversationId: String, pinned: Boolean) =
+        withContext(Dispatchers.IO) {
+            aiChatDao.setConversationPinned(conversationId, pinned, System.currentTimeMillis())
+        }
+
     override suspend fun deleteConversation(conversationId: String) = withContext(Dispatchers.IO) {
         aiChatDao.deleteMessagesByConversation(conversationId)
         aiChatDao.deleteConversation(conversationId)

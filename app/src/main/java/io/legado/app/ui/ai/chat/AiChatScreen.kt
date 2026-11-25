@@ -42,8 +42,11 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.outlined.PushPin
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -241,8 +244,14 @@ fun AiChatScreen(
                     onIntent(AiChatIntent.SelectConversation(it))
                     scope.launch { drawerState.close() }
                 },
-                onDeleteConversation = {
-                    onIntent(AiChatIntent.DeleteConversation(it))
+                onDeleteConversations = { ids ->
+                    onIntent(AiChatIntent.DeleteConversations(ids))
+                },
+                onRenameConversation = { id, title ->
+                    onIntent(AiChatIntent.RenameConversation(id, title))
+                },
+                onSetPinned = { ids, pinned ->
+                    onIntent(AiChatIntent.SetConversationsPinned(ids, pinned))
                 }
             )
         }
@@ -518,6 +527,9 @@ fun AiChatScreen(
                                 isSending = state.isSending,
                                 reasoningLevel = state.reasoningLevel,
                                 skills = state.availableSkills,
+                                models = state.availableModels,
+                                currentModelId = state.currentModelId,
+                                onSelectModel = { onIntent(AiChatIntent.SelectModel(it)) },
                                 onValueChange = { draft = it },
                                 onSend = {
                                     val text = draft
@@ -601,14 +613,7 @@ fun AiChatScreen(
                                 }
                             }
                         }
-                        // 模型切换：点当前模型名直接选择已启用模型。
-                        AiModelPicker(
-                            models = state.availableModels,
-                            currentModelId = state.currentModelId,
-                            fallbackLabel = modelName,
-                            onSelect = { onIntent(AiChatIntent.SelectModel(it)) },
-                        )
-                        // 右上角：溢出菜单（新对话 / 工作区 / 保存 / 删除 / 返回）。
+                        // 右上角：溢出菜单（新对话 / 关闭），模型切换已移入输入框「+」菜单。
                         Box {
                             MediumTonalButton(
                                 onClick = { overflowExpanded = true },
@@ -619,12 +624,7 @@ fun AiChatScreen(
                                 expanded = overflowExpanded,
                                 onDismiss = { overflowExpanded = false },
                                 onNewChat = { onIntent(AiChatIntent.NewConversation) },
-                                onWorkspace = { onIntent(AiChatIntent.ToggleWorkspace) },
-                                onSave = { onIntent(AiChatIntent.SaveConversationToWorkspace) },
-                                onDelete = {
-                                    currentConversation?.id?.let { conversationToDelete = it }
-                                },
-                                onBack = onBackClick,
+                                onClose = onBackClick,
                             )
                         }
                     }
@@ -834,11 +834,16 @@ private fun RecentChatsDrawer(
     conversations: List<AiChatConversationUi>,
     onNewChat: () -> Unit,
     onSelectConversation: (String) -> Unit,
-    onDeleteConversation: (String) -> Unit
+    onDeleteConversations: (List<String>) -> Unit,
+    onRenameConversation: (String, String) -> Unit,
+    onSetPinned: (List<String>, Boolean) -> Unit
 ) {
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var showSearch by rememberSaveable { mutableStateOf(false) }
-    var conversationToDelete by remember { mutableStateOf<AiChatConversationUi?>(null) }
+    var multiSelect by remember { mutableStateOf(false) }
+    var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var renameTargetId by remember { mutableStateOf<String?>(null) }
+    var renameText by remember { mutableStateOf("") }
     val searchFocusRequester = remember { FocusRequester() }
     val filteredConversations = remember(conversations, searchQuery) {
         if (searchQuery.isBlank()) {
@@ -867,7 +872,7 @@ private fun RecentChatsDrawer(
             verticalAlignment = Alignment.CenterVertically
         ) {
             AppText(
-                text = stringResource(R.string.ai_recent_chats),
+                text = stringResource(if (multiSelect) R.string.ai_multi_select else R.string.ai_recent_chats),
                 style = LegadoTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f),
@@ -905,6 +910,69 @@ private fun RecentChatsDrawer(
                 singleLine = true
             )
         }
+        // 多选操作栏：置顶 / 取消置顶 / 重命名（仅单选）/ 删除 / 退出。
+        if (multiSelect) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                MediumTonalButton(
+                    onClick = {
+                        onSetPinned(selectedIds.toList(), true)
+                        multiSelect = false
+                        selectedIds = emptySet()
+                    },
+                    icon = Icons.Default.PushPin,
+                    enabled = selectedIds.isNotEmpty(),
+                    contentDescription = stringResource(R.string.ai_pin)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                MediumTonalButton(
+                    onClick = {
+                        onSetPinned(selectedIds.toList(), false)
+                        multiSelect = false
+                        selectedIds = emptySet()
+                    },
+                    icon = Icons.Outlined.PushPin,
+                    enabled = selectedIds.isNotEmpty(),
+                    contentDescription = stringResource(R.string.ai_unpin)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                MediumTonalButton(
+                    onClick = {
+                        if (selectedIds.size == 1) {
+                            val id = selectedIds.first()
+                            renameTargetId = id
+                            renameText = conversations.firstOrNull { it.id == id }?.title.orEmpty()
+                        }
+                    },
+                    enabled = selectedIds.size == 1,
+                    contentDescription = stringResource(R.string.ai_rename)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                MediumTonalButton(
+                    onClick = {
+                        onDeleteConversations(selectedIds.toList())
+                        multiSelect = false
+                        selectedIds = emptySet()
+                    },
+                    icon = Icons.Default.Close,
+                    enabled = selectedIds.isNotEmpty(),
+                    contentDescription = stringResource(R.string.delete)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                MediumTonalButton(
+                    onClick = {
+                        multiSelect = false
+                        selectedIds = emptySet()
+                    },
+                    icon = Icons.Default.Menu,
+                    contentDescription = stringResource(R.string.cancel)
+                )
+            }
+        }
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
@@ -912,37 +980,71 @@ private fun RecentChatsDrawer(
         ) {
             items(filteredConversations, key = { it.id }) { conversation ->
                 val isSelected = conversation.isSelected
+                val checked = conversation.id in selectedIds
                 NormalCard(
                     modifier = Modifier.fillMaxWidth(),
-                    onClick = { onSelectConversation(conversation.id) },
-                    onLongClick = { conversationToDelete = conversation },
-                    containerColor = if (isSelected) {
-                        LegadoTheme.colorScheme.primaryContainer
-                    } else {
-                        LegadoTheme.colorScheme.surface
+                    onClick = {
+                        if (multiSelect) {
+                            selectedIds = if (checked) selectedIds - conversation.id
+                            else selectedIds + conversation.id
+                        } else {
+                            onSelectConversation(conversation.id)
+                        }
+                    },
+                    onLongClick = {
+                        if (!multiSelect) {
+                            multiSelect = true
+                            selectedIds = setOf(conversation.id)
+                        } else {
+                            renameTargetId = conversation.id
+                            renameText = conversation.title
+                        }
+                    },
+                    containerColor = when {
+                        checked -> LegadoTheme.colorScheme.primaryContainer
+                        isSelected -> LegadoTheme.colorScheme.secondaryContainer
+                        else -> LegadoTheme.colorScheme.surface
                     }
                 ) {
-                    Column(
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        AppText(
-                            text = conversation.title,
-                            style = LegadoTheme.typography.bodyMedium,
-                            maxLines = 2,
-                            color = if (isSelected) {
-                                LegadoTheme.colorScheme.onPrimaryContainer
-                            } else {
-                                LegadoTheme.colorScheme.onSurface
+                        if (multiSelect) {
+                            Checkbox(checked = checked, onCheckedChange = null)
+                            Spacer(modifier = Modifier.width(6.dp))
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (conversation.isPinned) {
+                                    Icon(
+                                        imageVector = Icons.Default.PushPin,
+                                        contentDescription = stringResource(R.string.ai_pin),
+                                        modifier = Modifier.size(14.dp),
+                                        tint = LegadoTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                }
+                                AppText(
+                                    text = conversation.title,
+                                    style = LegadoTheme.typography.bodyMedium,
+                                    maxLines = 2,
+                                    color = if (checked || isSelected) {
+                                        LegadoTheme.colorScheme.onPrimaryContainer
+                                    } else {
+                                        LegadoTheme.colorScheme.onSurface
+                                    }
+                                )
                             }
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        AppText(
-                            text = formatRelativeTime(conversation.updatedAt),
-                            style = LegadoTheme.typography.labelSmall,
-                            color = LegadoTheme.colorScheme.outline
-                        )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            AppText(
+                                text = formatRelativeTime(conversation.updatedAt),
+                                style = LegadoTheme.typography.labelSmall,
+                                color = LegadoTheme.colorScheme.outline
+                            )
+                        }
                     }
                 }
             }
@@ -950,18 +1052,29 @@ private fun RecentChatsDrawer(
     }
 
     AppAlertDialog(
-        show = conversationToDelete != null,
-        onDismissRequest = { conversationToDelete = null },
-        title = stringResource(R.string.delete),
-        text = stringResource(R.string.sure_del),
-        confirmText = stringResource(R.string.delete),
+        show = renameTargetId != null,
+        onDismissRequest = { renameTargetId = null },
+        title = stringResource(R.string.ai_rename),
+        confirmText = stringResource(R.string.ok),
         onConfirm = {
-            conversationToDelete?.let { onDeleteConversation(it.id) }
-            conversationToDelete = null
+            renameTargetId?.let { id ->
+                val title = renameText.trim()
+                if (title.isNotBlank()) onRenameConversation(id, title)
+            }
+            renameTargetId = null
         },
         dismissText = stringResource(R.string.cancel),
-        onDismiss = { conversationToDelete = null }
-    )
+        onDismiss = { renameTargetId = null }
+    ) {
+        BasicTextField(
+            value = renameText,
+            onValueChange = { renameText = it },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp),
+            textStyle = LegadoTheme.typography.bodyLarge.copy(color = LegadoTheme.colorScheme.onSurface),
+            cursorBrush = SolidColor(LegadoTheme.colorScheme.primary)
+        )
+    }
 }
 
 internal fun formatRelativeTime(timestamp: Long): String {
@@ -1110,6 +1223,9 @@ private fun ChatInputBar(
     isSending: Boolean,
     reasoningLevel: AiReasoningLevel,
     skills: ImmutableList<AiSkillOptionUi>,
+    models: ImmutableList<AiModelOptionUi>,
+    currentModelId: String?,
+    onSelectModel: (String) -> Unit,
     onValueChange: (String) -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit,
@@ -1148,11 +1264,14 @@ private fun ChatInputBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            // 「添加」触发器：思考模式 + 技能（含书源制作），点技能新开对话任务。
+            // 「添加」触发器：切换模型 + 思考模式 + 技能（含书源制作），点技能新开对话任务。
             AiAddMenuTrigger(
                 reasoningLevel = reasoningLevel,
                 skills = skills,
                 enabled = !isSending,
+                models = models,
+                currentModelId = currentModelId,
+                onSelectModel = onSelectModel,
                 onLevelChange = onUpdateReasoningLevel,
                 onStartSkill = onStartSkill,
             )

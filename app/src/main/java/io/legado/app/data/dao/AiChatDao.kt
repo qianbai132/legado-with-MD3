@@ -16,8 +16,11 @@ data class BranchCount(
 @Dao
 interface AiChatDao {
 
-    @Query("SELECT * FROM ai_chat_conversations ORDER BY updatedAt DESC")
+    @Query("SELECT * FROM ai_chat_conversations ORDER BY isPinned DESC, updatedAt DESC")
     fun observeConversations(): Flow<List<AiChatConversation>>
+
+    @Query("UPDATE ai_chat_conversations SET isPinned = :pinned, updatedAt = :updatedAt WHERE id = :conversationId")
+    suspend fun setConversationPinned(conversationId: String, pinned: Boolean, updatedAt: Long)
 
     @Query("SELECT * FROM ai_chat_messages WHERE conversationId = :conversationId ORDER BY createdAt ASC")
     fun observeMessages(conversationId: String): Flow<List<AiChatMessage>>

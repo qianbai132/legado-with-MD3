@@ -85,6 +85,7 @@ import io.legado.app.receiver.TimeBatteryReceiver
 import io.legado.app.service.BaseReadAloudService
 import io.legado.app.ui.book.read.page.entities.PageDirection
 import io.legado.app.ui.login.SourceLoginJsExtensions
+import io.legado.app.ui.ai.chat.AiFloatingChatController
 import io.legado.app.ui.widget.PopupAction
 import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.Debounce
@@ -2210,6 +2211,27 @@ class ReadBookController(
                 return true
             }
 
+            R.id.menu_ai_chat -> {
+                // 划词「AI」：打开全局 AI 对话框，并把选中文字预填进聊天输入框。
+                val book = ReadBook.book
+                val picked = selectedText.trim()
+                if (book == null || picked.isBlank()) {
+                    activity.toastOnUi(R.string.ai_text_clean_selection_error)
+                } else {
+                    AiFloatingChatController.open(
+                        AiFloatingChatController.ChatRequest(
+                            bookUrl = book.bookUrl,
+                            bookName = book.name.orEmpty(),
+                            chapterTitle = ReadBook.readerChapterInputWindow.current?.displayTitle.orEmpty(),
+                            skillId = null,
+                            skillName = null,
+                            initialDraft = picked,
+                        )
+                    )
+                }
+                return true
+            }
+
             R.id.menu_search_content -> {
                 viewModel.onIntent(ReadBookIntent.TextActionSearchContent(selectedText))
                 return true
@@ -2283,6 +2305,7 @@ class ReadBookController(
             items.add(ActionMenuItem(R.id.menu_edit, activity.getString(R.string.edit)))
             items.add(ActionMenuItem(R.id.menu_ai_clean, activity.getString(R.string.ai_text_clean)))
             items.add(ActionMenuItem(R.id.menu_ai_rewrite, activity.getString(R.string.ai_text_rewrite)))
+            items.add(ActionMenuItem(R.id.menu_ai_chat, activity.getString(R.string.ai_chat_menu_item)))
             items.add(
                 ActionMenuItem(
                     R.id.menu_extend_selection,
@@ -3497,6 +3520,7 @@ data class ActionMenuItem(
                 R.id.menu_edit -> "menu_edit"
                 R.id.menu_ai_clean -> "menu_ai_clean"
                 R.id.menu_ai_rewrite -> "menu_ai_rewrite"
+                R.id.menu_ai_chat -> "menu_ai_chat"
                 R.id.menu_extend_selection -> "menu_extend_selection"
                 R.id.menu_search_content -> "menu_search_content"
                 R.id.menu_insert_bgm_before -> "menu_insert_bgm_before"

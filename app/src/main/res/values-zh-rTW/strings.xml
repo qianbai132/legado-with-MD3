@@ -2290,6 +2290,12 @@
     <string name="ai_no_provider_configured">請先建立供應商</string>
     <string name="ai_no_models_imported">尚未匯入模型</string>
     <string name="ai_select_model">選擇模型</string>
+    <string name="ai_switch_model">切換模型</string>
+    <string name="ai_pin">置頂</string>
+    <string name="ai_unpin">取消置頂</string>
+    <string name="ai_rename">重新命名</string>
+    <string name="ai_multi_select">多選</string>
+    <string name="ai_maximize">最大化</string>
     <string name="ai_add_model_manually">手動新增模型</string>
     <string name="ai_not_set">未設定</string>
     <string name="ai_current_value">目前：%1$s</string>

@@ -2357,6 +2357,7 @@
     <string name="ai_chapter_changed">当前章节已变化，请重新操作。</string>
     <string name="ai_chapter_content_unavailable">无法读取当前章节正文。</string>
     <string name="ai_text_clean">AI 净化</string>
+    <string name="ai_chat_menu_item">AI 对话</string>
     <string name="ai_text_clean_before">更改前</string>
     <string name="ai_text_clean_after">更改后</string>
     <string name="ai_text_clean_delete">删除所选文字</string>
@@ -2536,6 +2537,12 @@
     <string name="ai_no_provider_configured">请先新建供应商</string>
     <string name="ai_no_models_imported">未导入模型</string>
     <string name="ai_select_model">选择模型</string>
+    <string name="ai_switch_model">切换模型</string>
+    <string name="ai_pin">置顶</string>
+    <string name="ai_unpin">取消置顶</string>
+    <string name="ai_rename">重命名</string>
+    <string name="ai_multi_select">多选</string>
+    <string name="ai_maximize">最大化</string>
     <string name="ai_add_model_manually">手动添加模型</string>
     <string name="ai_not_set">未设置</string>
     <string name="ai_current_value">当前：%1$s</string>

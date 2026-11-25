@@ -1721,6 +1721,12 @@
     <string name="ai_save_provider">儲存供應商</string>
     <string name="ai_scroll_to_bottom">滾動到底部</string>
     <string name="ai_select_model">選擇模型</string>
+    <string name="ai_switch_model">切換模型</string>
+    <string name="ai_pin">置頂</string>
+    <string name="ai_unpin">取消置頂</string>
+    <string name="ai_rename">重新命名</string>
+    <string name="ai_multi_select">多選</string>
+    <string name="ai_maximize">最大化</string>
     <string name="ai_send">發送</string>
     <string name="ai_skills">技能</string>
     <string name="ai_tasks">任務</string>

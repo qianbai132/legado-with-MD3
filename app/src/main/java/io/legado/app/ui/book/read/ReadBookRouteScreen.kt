@@ -188,6 +188,8 @@ fun ReadBookRouteScreen(
     val readPreferences by viewModel.readPreferences.collectAsStateWithLifecycle()
     val markingState by viewModel.markingState.collectAsStateWithLifecycle()
     val readerRenderState by readerSessionViewModel.uiState.collectAsStateWithLifecycle()
+    // AI 悬浮对话窗已存在时隐藏阅读页悬浮球，避免同时出现两个悬浮入口。
+    val aiChatActive by AiFloatingChatController.request.collectAsStateWithLifecycle()
     val readerPageWindow = readerRenderState.pageWindow
     val readerPaginationError = readerRenderState.paginationError
     val readerBackground = readerRenderState.background
@@ -869,9 +871,11 @@ fun ReadBookRouteScreen(
                 onIntent = viewModel::onIntent,
                 seekState = viewModel.seekState,
             )
-            // AI 悬浮小窗：右下角，与底部中央的听书/阅读胶囊错开；菜单或搜索结果与菜单互斥时隐藏。
+            // AI 悬浮小窗：右下角，与底部中央的听书/阅读胶囊错开；
+            // 菜单/搜索结果与菜单互斥时隐藏；已有全局 AI 对话窗时也隐藏，避免两个悬浮入口。
             AnimatedVisibility(
-                visible = !state.menuVisible && !state.isShowingSearchResult && state.activeDialog == null,
+                visible = !state.menuVisible && !state.isShowingSearchResult &&
+                    state.activeDialog == null && aiChatActive == null,
             ) {
                 AiQuickFab(
                     onOpenChat = {

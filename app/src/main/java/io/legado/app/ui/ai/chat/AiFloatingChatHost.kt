@@ -46,8 +46,8 @@ object AiFloatingChatController {
         val chapterTitle: String = "",
         val skillId: String? = null,
         val skillName: String? = null,
-        /** 每次打开生成，作为 ViewModel key，保证每次都是新会话。 */
-        val nonce: String = "",
+        /** 划词「AI」入口带进来的文字，预填到聊天输入框。 */
+        val initialDraft: String = "",
     )
 
     private val _request = MutableStateFlow<ChatRequest?>(null)
@@ -63,8 +63,7 @@ object AiFloatingChatController {
     val bubbleY = _bubbleY.asStateFlow()
 
     fun open(req: ChatRequest) {
-        // 每次打开都分配新的 nonce → 新的 ViewModel 实例 → 新会话。
-        _request.value = req.copy(nonce = System.nanoTime().toString())
+        _request.value = req
         _minimized.value = false
     }
 
@@ -89,7 +88,7 @@ object AiFloatingChatController {
 
 /**
  * 挂在 MainActivity 顶层、浮在所有导航页面之上的 AI 对话宿主。
- * 有请求且未最小化时显示完整对话小窗；最小化时显示可拖动气泡，点击恢复。
+ * 有请求且未最小化时显示完整对话小窗；最小化时显示唯一的可拖动气泡（变色提示后台任务）。
  */
 @Composable
 fun AiFloatingChatHost() {
@@ -108,14 +107,14 @@ fun AiFloatingChatHost() {
             chapterTitle = req.chapterTitle,
             skillId = req.skillId,
             skillName = req.skillName,
-            nonce = req.nonce,
+            initialDraft = req.initialDraft,
             onMinimize = { AiFloatingChatController.minimize() },
             onDismiss = { AiFloatingChatController.close() },
         )
     }
 }
 
-/** 最小化后的悬浮气泡：可拖动、点击恢复对话、长按关闭。 */
+/** 最小化后的唯一悬浮气泡：变色提示 AI 在后台运行，可拖动、点击恢复、长按关闭。 */
 @Composable
 private fun AiFloatingChatBubble(
     onRestore: () -> Unit,
@@ -149,9 +148,12 @@ private fun AiFloatingChatBubble(
         animationSpec = if (dragging) snap() else tween(200, easing = FastOutSlowInEasing),
         label = "aiBubbleY",
     )
+    // 最小化状态用主色强调（区别于普通悬浮球），提示 AI 仍在后台运行。
+    val bubbleColor = LegadoTheme.colorScheme.primary
+    val bubbleContentColor = LegadoTheme.colorScheme.onPrimary
     Surface(
         shape = RoundedCornerShape(28.dp),
-        color = LegadoTheme.colorScheme.primaryContainer,
+        color = bubbleColor,
         shadowElevation = 10.dp,
         modifier = Modifier
             .offset(x = shownX.dp, y = shownY.dp)
@@ -183,7 +185,7 @@ private fun AiFloatingChatBubble(
             Icon(
                 imageVector = Icons.Default.AutoAwesome,
                 contentDescription = stringResource(R.string.ai_chat),
-                tint = LegadoTheme.colorScheme.onPrimaryContainer,
+                tint = bubbleContentColor,
             )
         }
     }

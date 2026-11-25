@@ -22,6 +22,7 @@ object DatabaseMigrations {
             migration_39_40, migration_40_41, migration_41_42, migration_42_43,
             migration_82_83, migration_98_99, migration_99_100,
             migration_102_103, migration_123_124, migration_124_125, migration_127_128,
+            migration_136_137,
         )
     }
 
@@ -896,6 +897,18 @@ object DatabaseMigrations {
             )
             db.execSQL("DROP TABLE highlightRules")
             db.execSQL("ALTER TABLE highlightRules_r56 RENAME TO highlightRules")
+        }
+    }
+
+    /**
+     * 136 → 137：ai_chat_conversations 新增 isPinned 列（会话置顶），默认 0。
+     * 手写迁移因为仓库里没有 136 的导出 schema，无法用 AutoMigration。
+     */
+    private val migration_136_137 = object : Migration(136, 137) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "ALTER TABLE `ai_chat_conversations` ADD COLUMN `isPinned` INTEGER NOT NULL DEFAULT 0"
+            )
         }
     }
 }

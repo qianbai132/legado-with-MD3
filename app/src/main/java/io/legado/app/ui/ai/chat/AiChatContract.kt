@@ -64,7 +64,8 @@ data class AiChatConversationUi(
     val updatedAt: Long,
     val isSelected: Boolean,
     val providerName: String = "",
-    val modelName: String = ""
+    val modelName: String = "",
+    val isPinned: Boolean = false
 )
 
 @Stable
@@ -114,7 +115,11 @@ sealed interface AiChatIntent {
     data class RegenerateMessage(val messageId: String) : AiChatIntent
     data class SwitchBranch(val messageId: String) : AiChatIntent
     data class DeleteConversation(val id: String) : AiChatIntent
+    /** 折叠菜单多选模式下批量删除。 */
+    data class DeleteConversations(val ids: List<String>) : AiChatIntent
     data class RenameConversation(val id: String, val title: String) : AiChatIntent
+    /** 折叠菜单多选模式下批量置顶 / 取消置顶。 */
+    data class SetConversationsPinned(val ids: List<String>, val pinned: Boolean) : AiChatIntent
     data class SetReadingContext(val context: AiReadingContext?) : AiChatIntent
     /** 从阅读页技能悬浮窗进入：加载指定技能内容并作为首条消息自动开聊。 */
     data class ApplySkill(val skillId: String) : AiChatIntent

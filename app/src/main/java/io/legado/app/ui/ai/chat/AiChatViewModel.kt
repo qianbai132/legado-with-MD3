@@ -175,7 +175,9 @@ class AiChatViewModel(
             is AiChatIntent.RegenerateMessage -> regenerateMessage(intent.messageId)
             is AiChatIntent.SwitchBranch -> switchBranch(intent.messageId)
             is AiChatIntent.DeleteConversation -> deleteConversation(intent.id)
+            is AiChatIntent.DeleteConversations -> deleteConversations(intent.ids)
             is AiChatIntent.RenameConversation -> renameConversation(intent.id, intent.title)
+            is AiChatIntent.SetConversationsPinned -> setConversationsPinned(intent.ids, intent.pinned)
             is AiChatIntent.SetReadingContext -> _uiState.update { it.copy(readingContext = intent.context) }
             is AiChatIntent.ApplySkill -> applySkill(intent.skillId)
             is AiChatIntent.OpenBookChat -> openBookChat(intent.context, intent.skillId, intent.skillName)
@@ -401,7 +403,8 @@ class AiChatViewModel(
                                 updatedAt = it.updatedAt,
                                 isSelected = it.id == selectedId,
                                 providerName = previous?.providerName.orEmpty(),
-                                modelName = previous?.modelName.orEmpty()
+                                modelName = previous?.modelName.orEmpty(),
+                                isPinned = it.isPinned
                             )
                         }.toImmutableList()
                     )
@@ -594,9 +597,28 @@ class AiChatViewModel(
         }
     }
 
+    private fun deleteConversations(conversationIds: List<String>) {
+        if (conversationIds.isEmpty()) return
+        viewModelScope.launch {
+            conversationIds.forEach { aiChatGateway.deleteConversation(it) }
+            if (currentConversationId.value in conversationIds) {
+                currentConversationId.value = null
+                _uiState.update { it.copy(messages = persistentListOf(), currentConversationId = null) }
+                createConversation()
+            }
+        }
+    }
+
     private fun renameConversation(conversationId: String, title: String) {
         viewModelScope.launch {
             aiChatGateway.updateConversationTitle(conversationId, title)
+        }
+    }
+
+    private fun setConversationsPinned(conversationIds: List<String>, pinned: Boolean) {
+        if (conversationIds.isEmpty()) return
+        viewModelScope.launch {
+            conversationIds.forEach { aiChatGateway.setConversationPinned(it, pinned) }
         }
     }
 

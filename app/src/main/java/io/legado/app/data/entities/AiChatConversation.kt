@@ -11,5 +11,7 @@ data class AiChatConversation(
     val reasoningLevel: String = "auto",
     val modelProfileId: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    /** 会话置顶：置顶的会话在列表里排在前面。 */
+    val isPinned: Boolean = false
 )

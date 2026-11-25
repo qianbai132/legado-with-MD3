@@ -2,20 +2,27 @@ package io.legado.app.ui.ai.chat
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.Minimize
-import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.outlined.PushPin
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -23,26 +30,29 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import io.legado.app.R
 import io.legado.app.domain.model.AiReasoningLevel
 import io.legado.app.ui.ai.AiReasoningLevelControl
 import io.legado.app.ui.theme.LegadoTheme
+import io.legado.app.ui.widget.components.alert.AppAlertDialog
 import io.legado.app.ui.widget.components.button.series.MediumTonalButton
 import io.legado.app.ui.widget.components.card.NormalCard
 import io.legado.app.ui.widget.components.divider.PillDivider
 import io.legado.app.ui.widget.components.menuItem.RoundDropdownMenu
 import io.legado.app.ui.widget.components.menuItem.RoundDropdownMenuItem
-import io.legado.app.ui.widget.components.alert.AppAlertDialog
 import io.legado.app.ui.widget.components.modalBottomSheet.AppModalBottomSheet
 import io.legado.app.ui.widget.components.text.AppText
 import kotlinx.collections.immutable.ImmutableList
 
 /**
  * 输入框前的「添加」触发器：一个 + 按钮，点开一个底部面板。
- * 面板里放思考模式选择 + 全部已启用技能（含书源制作）。
+ * 面板里放切换模型 + 思考模式 + 全部已启用技能（含书源制作）。
  * 点技能回调 [onStartSkill]，由调用方新开一个对话任务。
  */
 @Composable
@@ -50,6 +60,9 @@ fun AiAddMenuTrigger(
     reasoningLevel: AiReasoningLevel,
     skills: ImmutableList<AiSkillOptionUi>,
     enabled: Boolean,
+    models: ImmutableList<AiModelOptionUi> = kotlinx.collections.immutable.persistentListOf(),
+    currentModelId: String? = null,
+    onSelectModel: (String) -> Unit = {},
     onLevelChange: (AiReasoningLevel) -> Unit,
     onStartSkill: (String) -> Unit,
 ) {
@@ -72,6 +85,56 @@ fun AiAddMenuTrigger(
                 .heightIn(max = 520.dp)
                 .verticalScroll(rememberScrollState())
         ) {
+            // 切换模型：模型选择横栏从顶栏移到这里。
+            if (models.isNotEmpty()) {
+                AppText(
+                    text = stringResource(R.string.ai_switch_model),
+                    style = LegadoTheme.typography.titleSmall,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                )
+                val currentLabel = models.firstOrNull { it.id == currentModelId }?.displayName
+                AppText(
+                    text = currentLabel?.let { stringResource(R.string.ai_current_value, it) }
+                        ?: stringResource(R.string.ai_not_set),
+                    style = LegadoTheme.typography.bodySmall,
+                    color = LegadoTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                )
+                models.forEach { model ->
+                    NormalCard(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        onClick = {
+                            onSelectModel(model.id)
+                            showSheet = false
+                        },
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = if (model.id == currentModelId) {
+                                    LegadoTheme.colorScheme.primary
+                                } else {
+                                    LegadoTheme.colorScheme.onSurfaceVariant
+                                },
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            AppText(
+                                text = model.displayName,
+                                style = LegadoTheme.typography.bodyMedium,
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                }
+                PillDivider()
+            }
             AppText(
                 text = stringResource(R.string.ai_thinking_mode),
                 style = LegadoTheme.typography.titleSmall,
@@ -129,7 +192,10 @@ fun AiAddMenuTrigger(
 
 /**
  * 「新对话 + 历史会话」菜单面板（用于阅读页小窗的左上角折叠菜单）。
- * 全屏问答页使用侧滑抽屉，这里用小面板以适配浮层小窗。
+ *
+ * - 单击会话：进入该会话。
+ * - 长按会话：进入多选模式（默认选中被长按的会话）。
+ * - 多选模式：可勾选多个会话，一键置顶 / 取消置顶、重命名（仅单选）、删除。
  */
 @Composable
 fun AiConversationMenuSheet(
@@ -139,97 +205,261 @@ fun AiConversationMenuSheet(
     currentConversationId: String?,
     onNewChat: () -> Unit,
     onSelectConversation: (String) -> Unit,
-    onDeleteConversation: (String) -> Unit,
+    onDeleteConversations: (List<String>) -> Unit,
+    onRenameConversation: (String, String) -> Unit,
+    onSetPinned: (List<String>, Boolean) -> Unit,
 ) {
-    // 长按会话弹出删除确认，避免误触。
-    var conversationToDelete by remember { mutableStateOf<String?>(null) }
+    var multiSelect by remember { mutableStateOf(false) }
+    var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var renameTargetId by remember { mutableStateOf<String?>(null) }
+    var renameText by remember { mutableStateOf(TextFieldValue("")) }
+
+    // 关闭时重置多选状态。
+    if (!show) {
+        if (multiSelect || selectedIds.isNotEmpty()) {
+            multiSelect = false
+            selectedIds = emptySet()
+        }
+    }
+
     AppModalBottomSheet(
         show = show,
         onDismissRequest = onDismissRequest,
-        title = stringResource(R.string.ai_recent_chats),
+        title = stringResource(
+            if (multiSelect) R.string.ai_multi_select else R.string.ai_recent_chats
+        ),
         animateContentSize = false,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(max = 480.dp)
+                .heightIn(max = 520.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            NormalCard(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
-                onClick = {
-                    onDismissRequest()
-                    onNewChat()
-                },
-            ) {
-                AppText(
-                    text = stringResource(R.string.ai_new_chat),
-                    style = LegadoTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(12.dp),
-                )
-            }
-            conversations.forEach { conversation ->
-                val selected = conversation.id == currentConversationId
+            if (multiSelect) {
+                // 多选操作栏：全选 / 置顶 / 重命名 / 删除 / 退出。
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    MediumTonalButton(
+                        onClick = {
+                            selectedIds = if (selectedIds.size == conversations.size) {
+                                emptySet()
+                            } else {
+                                conversations.map { it.id }.toSet()
+                            }
+                        },
+                        text = stringResource(R.string.select_all),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    MediumTonalButton(
+                        onClick = {
+                            onSetPinned(selectedIds.toList(), true)
+                            multiSelect = false
+                            selectedIds = emptySet()
+                        },
+                        icon = Icons.Default.PushPin,
+                        text = stringResource(R.string.ai_pin),
+                        enabled = selectedIds.isNotEmpty(),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    MediumTonalButton(
+                        onClick = {
+                            onSetPinned(selectedIds.toList(), false)
+                            multiSelect = false
+                            selectedIds = emptySet()
+                        },
+                        icon = Icons.Outlined.PushPin,
+                        text = stringResource(R.string.ai_unpin),
+                        enabled = selectedIds.isNotEmpty(),
+                    )
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    MediumTonalButton(
+                        onClick = {
+                            renameTargetId?.let { id ->
+                                val text = renameText.text.trim()
+                                if (text.isNotBlank()) onRenameConversation(id, text)
+                            }
+                            renameTargetId = null
+                            multiSelect = false
+                            selectedIds = emptySet()
+                        },
+                        text = stringResource(R.string.ai_rename),
+                        enabled = selectedIds.size == 1,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    MediumTonalButton(
+                        onClick = {
+                            onDeleteConversations(selectedIds.toList())
+                            multiSelect = false
+                            selectedIds = emptySet()
+                        },
+                        icon = Icons.Default.Delete,
+                        text = stringResource(R.string.delete),
+                        enabled = selectedIds.isNotEmpty(),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    MediumTonalButton(
+                        onClick = {
+                            multiSelect = false
+                            selectedIds = emptySet()
+                        },
+                        icon = Icons.Default.Close,
+                        text = stringResource(R.string.cancel),
+                    )
+                }
+                PillDivider()
+            } else {
                 NormalCard(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
                     onClick = {
                         onDismissRequest()
-                        onSelectConversation(conversation.id)
-                    },
-                    onLongClick = { conversationToDelete = conversation.id },
-                    containerColor = if (selected) {
-                        LegadoTheme.colorScheme.primaryContainer
-                    } else {
-                        LegadoTheme.colorScheme.surface
+                        onNewChat()
                     },
                 ) {
-                    Column(
+                    AppText(
+                        text = stringResource(R.string.ai_new_chat),
+                        style = LegadoTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(12.dp),
+                    )
+                }
+            }
+            conversations.forEach { conversation ->
+                val selected = conversation.id == currentConversationId
+                val checked = conversation.id in selectedIds
+                NormalCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 3.dp),
+                    onClick = {
+                        if (multiSelect) {
+                            selectedIds = if (checked) {
+                                selectedIds - conversation.id
+                            } else {
+                                selectedIds + conversation.id
+                            }
+                        } else {
+                            onDismissRequest()
+                            onSelectConversation(conversation.id)
+                        }
+                    },
+                    onLongClick = {
+                        if (!multiSelect) {
+                            multiSelect = true
+                            selectedIds = setOf(conversation.id)
+                        } else {
+                            renameTargetId = conversation.id
+                            renameText = TextFieldValue(conversation.title)
+                        }
+                    },
+                    containerColor = when {
+                        checked -> LegadoTheme.colorScheme.primaryContainer
+                        selected -> LegadoTheme.colorScheme.secondaryContainer
+                        else -> LegadoTheme.colorScheme.surface
+                    },
+                ) {
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        AppText(
-                            text = conversation.title.ifBlank { stringResource(R.string.ai_chat) },
-                            style = LegadoTheme.typography.bodyMedium,
-                            maxLines = 1,
-                        )
-                        AppText(
-                            text = formatRelativeTime(conversation.updatedAt),
-                            style = LegadoTheme.typography.labelSmall,
-                            color = LegadoTheme.colorScheme.outline,
-                        )
+                        if (multiSelect) {
+                            Checkbox(checked = checked, onCheckedChange = null)
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (conversation.isPinned) {
+                                    Icon(
+                                        imageVector = Icons.Default.PushPin,
+                                        contentDescription = stringResource(R.string.ai_pin),
+                                        modifier = Modifier.size(14.dp),
+                                        tint = LegadoTheme.colorScheme.primary,
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                }
+                                AppText(
+                                    text = conversation.title.ifBlank { stringResource(R.string.ai_chat) },
+                                    style = LegadoTheme.typography.bodyMedium,
+                                    maxLines = 1,
+                                )
+                            }
+                            AppText(
+                                text = formatRelativeTime(conversation.updatedAt),
+                                style = LegadoTheme.typography.labelSmall,
+                                color = LegadoTheme.colorScheme.outline,
+                            )
+                        }
                     }
                 }
             }
             Spacer(Modifier.height(24.dp))
         }
     }
+
+    // 重命名对话框（多选模式下仅单选时可用；这里也支持长按单项直接改）。
     AppAlertDialog(
-        show = conversationToDelete != null,
-        onDismissRequest = { conversationToDelete = null },
-        title = stringResource(R.string.delete),
-        text = stringResource(R.string.sure_del),
-        confirmText = stringResource(R.string.delete),
+        show = renameTargetId != null,
+        onDismissRequest = { renameTargetId = null },
+        title = stringResource(R.string.ai_rename),
+        confirmText = stringResource(R.string.ok),
         onConfirm = {
-            conversationToDelete?.let { onDeleteConversation(it) }
-            conversationToDelete = null
+            renameTargetId?.let { id ->
+                val text = renameText.text.trim()
+                if (text.isNotBlank()) onRenameConversation(id, text)
+            }
+            renameTargetId = null
         },
         dismissText = stringResource(R.string.cancel),
-        onDismiss = { conversationToDelete = null },
-    )
+        onDismiss = { renameTargetId = null },
+    ) {
+        BasicTextField(
+            value = renameText,
+            onValueChange = { renameText = it },
+            singleLine = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 8.dp),
+            textStyle = LegadoTheme.typography.bodyLarge.copy(
+                color = LegadoTheme.colorScheme.onSurface,
+            ),
+            cursorBrush = SolidColor(LegadoTheme.colorScheme.primary),
+            decorationBox = { inner ->
+                if (renameText.text.isEmpty()) {
+                    AppText(
+                        text = stringResource(R.string.ai_chat),
+                        style = LegadoTheme.typography.bodyLarge,
+                        color = LegadoTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                inner()
+            },
+        )
+    }
 }
 
-/** 顶栏右上角溢出菜单：新对话 / 工作区 / 保存 / 删除。 */
+/**
+ * 顶栏右上角溢出菜单（精简版）：新建对话 / 最大化 / 最小化 / 关闭。
+ * [onMaximize] / [onMinimize] 为空时不显示对应项（例如全屏问答页没有最小化）。
+ */
 @Composable
 fun AiChatOverflowMenu(
     expanded: Boolean,
     onDismiss: () -> Unit,
     onNewChat: () -> Unit,
-    onWorkspace: () -> Unit,
-    onSave: () -> Unit,
-    onDelete: () -> Unit,
+    onMaximize: (() -> Unit)? = null,
     onMinimize: (() -> Unit)? = null,
-    onBack: (() -> Unit)? = null,
+    onClose: (() -> Unit)? = null,
 ) {
     RoundDropdownMenu(expanded = expanded, onDismissRequest = onDismiss) { dismiss ->
         RoundDropdownMenuItem(
@@ -237,24 +467,12 @@ fun AiChatOverflowMenu(
             leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
             onClick = { dismiss(); onNewChat() },
         )
-        RoundDropdownMenuItem(
-            text = stringResource(R.string.ai_workspace),
-            leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null) },
-            onClick = { dismiss(); onWorkspace() },
-        )
-        RoundDropdownMenuItem(
-            text = stringResource(R.string.ai_save_conversation),
-            leadingIcon = { Icon(Icons.Default.Save, contentDescription = null) },
-            onClick = { dismiss(); onSave() },
-        )
-        RoundDropdownMenuItem(
-            text = stringResource(R.string.ai_delete_current),
-            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
-            color = LegadoTheme.colorScheme.error,
-            onClick = { dismiss(); onDelete() },
-        )
-        if (onMinimize != null || onBack != null) {
-            PillDivider()
+        if (onMaximize != null) {
+            RoundDropdownMenuItem(
+                text = stringResource(R.string.ai_maximize),
+                leadingIcon = { Icon(Icons.Default.Fullscreen, contentDescription = null) },
+                onClick = { dismiss(); onMaximize() },
+            )
         }
         if (onMinimize != null) {
             RoundDropdownMenuItem(
@@ -263,47 +481,12 @@ fun AiChatOverflowMenu(
                 onClick = { dismiss(); onMinimize() },
             )
         }
-        if (onBack != null) {
+        if (onClose != null) {
             RoundDropdownMenuItem(
-                text = stringResource(R.string.back),
-                onClick = { dismiss(); onBack() },
+                text = stringResource(R.string.close),
+                leadingIcon = { Icon(Icons.Default.Close, contentDescription = null) },
+                onClick = { dismiss(); onClose() },
             )
-        }
-    }
-}
-
-/**
- * 顶栏模型选择器：显示当前模型，点击展开已启用模型列表直接切换。
- * [currentModelId] 为空时表示使用任务预设的默认模型。
- */
-@Composable
-fun AiModelPicker(
-    models: ImmutableList<AiModelOptionUi>,
-    currentModelId: String?,
-    fallbackLabel: String,
-    onSelect: (String) -> Unit,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val currentLabel = models.firstOrNull { it.id == currentModelId }?.displayName
-        ?: fallbackLabel.ifBlank { stringResource(R.string.ai_chat) }
-    Box {
-        MediumTonalButton(
-            onClick = { expanded = true },
-            icon = Icons.Default.AutoAwesome,
-            text = currentLabel,
-            contentDescription = stringResource(R.string.ai_select_model),
-        )
-        RoundDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) { dismiss ->
-            models.forEach { model ->
-                RoundDropdownMenuItem(
-                    text = model.displayName,
-                    isSelected = model.id == currentModelId,
-                    onClick = {
-                        dismiss()
-                        onSelect(model.id)
-                    },
-                )
-            }
         }
     }
 }
