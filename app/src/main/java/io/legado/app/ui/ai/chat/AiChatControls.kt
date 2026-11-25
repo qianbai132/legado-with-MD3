@@ -16,7 +16,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.Minimize
@@ -67,6 +70,8 @@ fun AiAddMenuTrigger(
     onStartSkill: (String) -> Unit,
 ) {
     var showSheet by rememberSaveable { mutableStateOf(false) }
+    // 模型列表默认折叠，只显示当前模型。
+    var modelsExpanded by rememberSaveable { mutableStateOf(false) }
     MediumTonalButton(
         onClick = { showSheet = true },
         icon = Icons.Default.Add,
@@ -85,51 +90,95 @@ fun AiAddMenuTrigger(
                 .heightIn(max = 520.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            // 切换模型：模型选择横栏从顶栏移到这里。
+            // 切换模型：默认只显示当前模型一行，点一下才展开全部模型。
             if (models.isNotEmpty()) {
-                AppText(
-                    text = stringResource(R.string.ai_switch_model),
-                    style = LegadoTheme.typography.titleSmall,
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
-                )
-                val currentLabel = models.firstOrNull { it.id == currentModelId }?.displayName
-                AppText(
-                    text = currentLabel?.let { stringResource(R.string.ai_current_value, it) }
-                        ?: stringResource(R.string.ai_not_set),
-                    style = LegadoTheme.typography.bodySmall,
-                    color = LegadoTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                )
-                models.forEach { model ->
-                    NormalCard(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                        onClick = {
-                            onSelectModel(model.id)
-                            showSheet = false
-                        },
+                val currentModel = models.firstOrNull { it.id == currentModelId }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    AppText(
+                        text = stringResource(R.string.ai_switch_model),
+                        style = LegadoTheme.typography.titleSmall,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                NormalCard(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                    onClick = { modelsExpanded = !modelsExpanded },
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Row(
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = LegadoTheme.colorScheme.primary,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        AppText(
+                            text = currentModel?.displayName ?: stringResource(R.string.ai_not_set),
+                            style = LegadoTheme.typography.bodyMedium,
+                            maxLines = 1,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Icon(
+                            imageVector = if (modelsExpanded) Icons.Default.ExpandLess
+                            else Icons.Default.ExpandMore,
+                            contentDescription = if (modelsExpanded) {
+                                stringResource(R.string.ai_collapse)
+                            } else {
+                                stringResource(R.string.ai_switch_model)
+                            },
+                            modifier = Modifier.size(18.dp),
+                            tint = LegadoTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                if (modelsExpanded) {
+                    models.forEach { model ->
+                        val selectedModel = model.id == currentModelId
+                        NormalCard(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 9.dp),
-                            verticalAlignment = Alignment.CenterVertically,
+                                .padding(start = 12.dp, end = 0.dp, top = 1.dp, bottom = 1.dp),
+                            onClick = {
+                                onSelectModel(model.id)
+                                modelsExpanded = false
+                            },
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.AutoAwesome,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = if (model.id == currentModelId) {
-                                    LegadoTheme.colorScheme.primary
-                                } else {
-                                    LegadoTheme.colorScheme.onSurfaceVariant
-                                },
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            AppText(
-                                text = model.displayName,
-                                style = LegadoTheme.typography.bodyMedium,
-                                maxLines = 1,
-                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                AppText(
+                                    text = model.displayName,
+                                    style = LegadoTheme.typography.bodyMedium,
+                                    maxLines = 1,
+                                    color = if (selectedModel) {
+                                        LegadoTheme.colorScheme.primary
+                                    } else {
+                                        LegadoTheme.colorScheme.onSurface
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                )
+                                if (selectedModel) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                        tint = LegadoTheme.colorScheme.primary,
+                                    )
+                                }
+                            }
                         }
                     }
                 }

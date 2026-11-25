@@ -130,7 +130,9 @@ sealed interface AiChatIntent {
     data class OpenBookChat(
         val context: AiReadingContext,
         val skillId: String? = null,
-        val skillName: String? = null
+        val skillName: String? = null,
+        /** 带技能启动时，用这句作为首条消息；为空则用默认的技能提示语。 */
+        val initialDraft: String = ""
     ) : AiChatIntent
     /** 把当前对话保存到工作区（作为当前书的产物）。 */
     data object SaveConversationToWorkspace : AiChatIntent

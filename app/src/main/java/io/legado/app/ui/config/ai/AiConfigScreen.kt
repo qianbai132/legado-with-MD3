@@ -2,6 +2,7 @@ package io.legado.app.ui.config.ai
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -17,6 +18,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -41,7 +43,9 @@ import io.legado.app.domain.model.AiToolGroup
 import io.legado.app.feature.settings.search.SearchableSetting
 import io.legado.app.feature.settings.search.SearchableSettingsList
 import io.legado.app.help.config.AppConfigStore
+import io.legado.app.ui.ai.chat.AiFloatingChatController
 import io.legado.app.ui.book.read.AiQuickAccessViewModel
+import io.legado.app.ui.theme.LegadoTheme
 import io.legado.app.ui.theme.adaptiveContentPadding
 import io.legado.app.ui.widget.components.AppScaffold
 import io.legado.app.ui.widget.components.SplicedColumnGroup
@@ -97,6 +101,7 @@ fun AiConfigScreen(
     var showModelSheet by remember { mutableStateOf(false) }
     var editingSkill by remember { mutableStateOf<AiSkillProfile?>(null) }
     var showQuickSkillPicker by remember { mutableStateOf(false) }
+    var showWorkshop by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         effects.collectLatest { effect ->
@@ -187,6 +192,16 @@ fun AiConfigScreen(
                             onClick = onNavigateToAiPrompt
                         )
                     }
+                }
+            }
+
+            item {
+                SplicedColumnGroup(title = stringResource(R.string.ai_book_source_tamer)) {
+                    ClickableSettingItem(
+                        title = stringResource(R.string.ai_book_source_workshop),
+                        description = stringResource(R.string.ai_book_source_workshop_desc),
+                        onClick = { showWorkshop = true }
+                    )
                 }
             }
 
@@ -399,6 +414,43 @@ fun AiConfigScreen(
                     Text(stringResource(R.string.save))
                 }
             }
+        }
+    }
+
+    // 书源工坊：整页覆盖，返回即关闭。
+    if (showWorkshop) {
+        val tamer = state.skills.firstOrNull { it.id == "builtin.book_source_tamer" }
+        val workshopTitle = stringResource(R.string.ai_book_source_workshop)
+        val tamerName = tamer?.name ?: stringResource(R.string.ai_book_source_tamer)
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = LegadoTheme.colorScheme.background
+        ) {
+            BookSourceWorkshopScreen(
+                skill = tamer,
+                onClose = { showWorkshop = false },
+                onEditSkill = { tamer?.let { editingSkill = it.toProfile() } },
+                onImportContent = { text ->
+                    tamer?.let {
+                        onIntent(AiConfigIntent.SaveSkill(it.toProfile().copy(content = text)))
+                    }
+                },
+                onToggleEnabled = { enabled ->
+                    tamer?.let { onIntent(AiConfigIntent.SetSkillEnabled(it.id, enabled)) }
+                },
+                onLaunch = { brief ->
+                    AiFloatingChatController.open(
+                        AiFloatingChatController.ChatRequest(
+                            bookUrl = "__book_source_workshop__",
+                            bookName = workshopTitle,
+                            skillId = "builtin.book_source_tamer",
+                            skillName = tamerName,
+                            initialDraft = brief,
+                        )
+                    )
+                    showWorkshop = false
+                },
+            )
         }
     }
 }

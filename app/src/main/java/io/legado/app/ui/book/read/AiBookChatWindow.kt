@@ -150,6 +150,7 @@ fun AiBookChatWindow(
                 ),
                 skillId = skillId,
                 skillName = skillName,
+                initialDraft = initialDraft,
             )
         )
     }
@@ -286,7 +287,7 @@ fun AiBookChatWindow(
 
             // 输入栏：前置「添加」触发器（切换模型 + 思考模式 + 技能）。
             // 划词「AI」入口带进来的文字预填到输入框。
-            var draft by remember { mutableStateOf(initialDraft) }
+            var draft by remember { mutableStateOf(if (skillId == null) initialDraft else "") }
             LaunchedEffect(initialDraft) {
                 if (initialDraft.isNotBlank()) draft = initialDraft
             }

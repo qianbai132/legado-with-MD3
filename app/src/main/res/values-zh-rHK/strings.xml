@@ -1722,6 +1722,7 @@
     <string name="ai_scroll_to_bottom">滾動到底部</string>
     <string name="ai_select_model">選擇模型</string>
     <string name="ai_switch_model">切換模型</string>
+    <string name="ai_collapse">收起</string>
     <string name="ai_pin">置頂</string>
     <string name="ai_unpin">取消置頂</string>
     <string name="ai_rename">重新命名</string>

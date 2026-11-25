@@ -182,7 +182,9 @@ class AiChatViewModel(
             is AiChatIntent.SetConversationsPinned -> setConversationsPinned(intent.ids, intent.pinned)
             is AiChatIntent.SetReadingContext -> _uiState.update { it.copy(readingContext = intent.context) }
             is AiChatIntent.ApplySkill -> applySkill(intent.skillId)
-            is AiChatIntent.OpenBookChat -> openBookChat(intent.context, intent.skillId, intent.skillName)
+            is AiChatIntent.OpenBookChat -> openBookChat(
+                intent.context, intent.skillId, intent.skillName, intent.initialDraft
+            )
             is AiChatIntent.FreshBookChat -> freshBookChat(intent.context, intent.skillId, intent.skillName)
             AiChatIntent.SaveConversationToWorkspace -> saveConversationToWorkspace()
             AiChatIntent.ToggleWorkspace -> {
@@ -202,7 +204,12 @@ class AiChatViewModel(
      * 阅读页「每本书一个对话小窗」：用 bookUrl 映射到独立会话；首次为该书新建会话并记住映射。
      * skillId 非空时只把技能名放进标题栏，并发一句轻量提示，AI 会通过 load_skill 自己加载正文。
      */
-    private fun openBookChat(context: AiReadingContext, skillId: String?, skillName: String?) {
+    private fun openBookChat(
+        context: AiReadingContext,
+        skillId: String?,
+        skillName: String?,
+        initialDraft: String = ""
+    ) {
         _uiState.update { it.copy(readingContext = context, activeSkillName = skillName) }
         viewModelScope.launch {
             val key = bookChatKey(context.bookUrl)
@@ -220,7 +227,9 @@ class AiChatViewModel(
             if (!skillId.isNullOrBlank()) {
                 // 只发一句提示，不贴 SKILL.md 正文；AI 按需调用 load_skill 加载完整指令。
                 val label = skillName?.takeIf { it.isNotBlank() } ?: skillId
-                sendMessage("请使用「$label」技能帮我处理当前这本书。")
+                val prompt = initialDraft.takeIf { it.isNotBlank() }
+                    ?: "请使用「$label」技能帮我处理当前这本书。"
+                sendMessage(prompt)
             }
         }
     }
