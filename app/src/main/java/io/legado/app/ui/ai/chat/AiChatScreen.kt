@@ -1066,8 +1066,8 @@ private fun RecentChatsDrawer(
             renameTargetId = null
         },
         dismissText = stringResource(R.string.cancel),
-        onDismiss = { renameTargetId = null }
-    ) {
+        onDismiss = { renameTargetId = null },
+        content = {
         BasicTextField(
             value = renameText,
             onValueChange = { renameText = it },
@@ -1076,7 +1076,8 @@ private fun RecentChatsDrawer(
             textStyle = LegadoTheme.typography.bodyLarge.copy(color = LegadoTheme.colorScheme.onSurface),
             cursorBrush = SolidColor(LegadoTheme.colorScheme.primary)
         )
-    }
+        }
+    )
 }
 
 internal fun formatRelativeTime(timestamp: Long): String {

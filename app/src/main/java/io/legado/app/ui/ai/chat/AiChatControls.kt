@@ -422,7 +422,7 @@ fun AiConversationMenuSheet(
         },
         dismissText = stringResource(R.string.cancel),
         onDismiss = { renameTargetId = null },
-    ) {
+        content = {
         BasicTextField(
             value = renameText,
             onValueChange = { renameText = it },
@@ -445,7 +445,8 @@ fun AiConversationMenuSheet(
                 inner()
             },
         )
-    }
+        },
+    )
 }
 
 /**
