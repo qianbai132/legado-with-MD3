@@ -418,7 +418,7 @@ private fun QuickSkillPickerSheet(
 ) {
     if (!show) return
     // 候选项与 AiQuickAccessViewModel 的过滤口径一致。
-    val candidates = skills.filter { it.enabled && it.id != "builtin.book_source" }
+    val candidates = skills.filter { it.enabled && it.id != "builtin.book_source_tamer" }
     val raw = AppConfigStore.getString(PreferKey.aiQuickSkillIds)
     val initiallySelected = if (raw == null) {
         candidates.map { it.id }.toSet()

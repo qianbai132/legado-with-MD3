@@ -28,8 +28,8 @@ class AiQuickAccessViewModel(
 ) : ViewModel() {
 
     companion object {
-        /** 书源编写是重型流程技能，放在悬浮球二级菜单里不合适，只在 AI 设置/工作区使用。 */
-        private const val BOOK_SOURCE_SKILL_ID = "builtin.book_source"
+        /** 书源驯兽师是重型流程技能，放在悬浮球二级菜单里不合适，只在 AI 设置/工作区使用。 */
+        private const val BOOK_SOURCE_SKILL_ID = "builtin.book_source_tamer"
 
         /** 解析偏好里的勾选集合；null / 空白 / 空集合都视为「未自定义」。 */
         fun parseSelected(raw: String?): Set<String> =

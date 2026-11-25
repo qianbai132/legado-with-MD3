@@ -371,6 +371,8 @@ class App : Application(), SingletonImageLoader.Factory {
             } else {
                 emptySet()
             }
+            // 移除被替换的旧内置技能（例如「书源编写」升级为「书源驯兽师」）。
+            DefaultAiSkills.removedIds.forEach { gateway.deleteSkill(it) }
             val defaults = DefaultAiSkills.all()
             defaults
                 .filterNot { it.id in existing || it.id in legacyDone }
