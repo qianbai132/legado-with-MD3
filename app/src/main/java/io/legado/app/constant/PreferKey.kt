@@ -126,6 +126,7 @@ object PreferKey {
     const val autoSuggestDayNight = "autoSuggestDayNight"
     const val readingAnchorEnabled = "readingAnchorEnabled"
     const val readAloudDetachReminderEnabled = "readAloudDetachReminderEnabled"
+    const val readAloudDetachDefaultTrueMigrated = "readAloudDetachDefaultTrueMigrated"
     const val importKeepName = "importKeepName"
     const val importKeepGroup = "importKeepGroup"
     const val screenOrientation = "screenOrientation"

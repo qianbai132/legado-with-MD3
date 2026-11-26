@@ -277,8 +277,8 @@ data class ReadBookUiState(
     val isReadAloudPaused: Boolean = false,
     /** 朗读位置是否跟随当前显示页；手动翻页/跳章后为 false（显示"回到朗读位置"悬浮条）。 */
     val readAloudFollow: Boolean = true,
-    /** 朗读位置脱离当前页时的悬浮提示开关；关闭时手动翻页朗读跟随新页面。 */
-    val readAloudDetachReminderEnabled: Boolean = false,
+    /** 朗读位置脱离当前页时的悬浮提示开关；关闭时手动翻页朗读跟随新页面。默认开启：手动翻页不影响听书进度。 */
+    val readAloudDetachReminderEnabled: Boolean = true,
     val readAloudEngineName: String = "",
     val readAloudCharacterName: String = "",
     val readAloudRoleType: SpeechRoleType = SpeechRoleType.Narrator,

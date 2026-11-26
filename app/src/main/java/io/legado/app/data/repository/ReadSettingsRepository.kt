@@ -409,7 +409,7 @@ class ReadSettingsRepository(
             autoChangeSource = compatDsValue(Keys.AutoChangeSource, true),
             autoSuggestDayNight = compatDsValue(Keys.AutoSuggestDayNight, false),
             readingAnchorEnabled = compatDsValue(Keys.ReadingAnchorEnabled, true),
-            readAloudDetachReminderEnabled = compatDsValue(Keys.ReadAloudDetachReminderEnabled, false),
+            readAloudDetachReminderEnabled = compatDsValue(Keys.ReadAloudDetachReminderEnabled, true),
             selectText = compatDsValue(Keys.SelectText, true),
             noAnimScrollPage = compatDsValue(Keys.NoAnimScrollPage, false),
             clickImgWay = compatDsValue(Keys.ClickImgWay, "2"),
